@@ -49,6 +49,7 @@ const char *sensor_channel_name[SENSOR_CHAN_ALL] = {
 	[SENSOR_CHAN_GAS_RES] =		"gas_resistance",
 	[SENSOR_CHAN_VOLTAGE] =		"voltage",
 	[SENSOR_CHAN_CURRENT] =		"current",
+	[SENSOR_CHAN_POWER] =		"power",
 	[SENSOR_CHAN_RESISTANCE] =	"resistance",
 	[SENSOR_CHAN_ROTATION] =	"rotation",
 	[SENSOR_CHAN_POS_DX] =		"pos_dx",
@@ -74,6 +75,7 @@ const char *sensor_channel_name[SENSOR_CHAN_ALL] = {
 	[SENSOR_CHAN_GAUGE_DESIRED_VOLTAGE] =	"gauge_desired_voltage",
 	[SENSOR_CHAN_GAUGE_DESIRED_CHARGING_CURRENT] =
 		 "gauge_desired_charging_current",
+	[SENSOR_CHAN_WEIGHT] =  "weight",
 };
 
 static int handle_channel_by_name(const struct shell *shell,

@@ -122,6 +122,24 @@
 			reg = <0x55556666 0x1000>;
 			label = "TEST_UART_CTLR";
 			status = "okay";
+
+			#include "uart.dtsi"
+		};
+
+		hx711 {
+			compatible = "avia,hx711";
+			status = "okay";
+			label = "HX711";
+			offset = <0>;
+			slope = <0 0>;
+			calibration-weight = <0 0>;
+			sample-fetch-timeout-ms = <700>;
+			gain = <1>;
+			rate-hz = <1>;
+
+			dout-gpios = <&test_gpio 30 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP) >;
+			sck-gpios = <&test_gpio 29 GPIO_ACTIVE_HIGH>;
+			rate-gpios = <&test_gpio 31 GPIO_ACTIVE_HIGH>;
 		};
 
 		dht22 {

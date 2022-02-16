@@ -1,0 +1,9 @@
+# HX711 Weight Scale interface Sensor configuration options
+# Copyright (c) 2020, George Gkinis
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig HX711
+	bool "HX711 Weight Scale Sensor"
+	depends on GPIO
+	help
+	  Enable driver for the HX711 Weight Scale Sensor.
