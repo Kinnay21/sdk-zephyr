@@ -266,6 +266,22 @@ __deprecated static inline int device_busy_check(const struct device *dev)
  */
 bool pm_device_wakeup_enable(struct device *dev, bool enable);
 
+
+/**
+ * Define device PM resources for the given instance.
+ *
+ * @note This macro is a no-op if @kconfig{CONFIG_PM_DEVICE} is not enabled.
+ *
+ * @param idx Instance index.
+ * @param pm_action_cb PM control callback.
+ *
+ * @see #PM_DEVICE_DT_DEFINE, #PM_DEVICE_DEFINE
+ */
+#define PM_DEVICE_DT_INST_DEFINE(idx, pm_action_cb)			\
+	Z_PM_DEVICE_DEFINE(DT_DRV_INST(idx),				\
+			   Z_DEVICE_DT_DEV_NAME(DT_DRV_INST(idx)),	\
+			   pm_action_cb)
+
 /**
  * @brief Check if a power management wakeup source is enabled
  *

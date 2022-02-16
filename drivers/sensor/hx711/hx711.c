@@ -114,7 +114,7 @@ static int hx711_sample_fetch(const struct device *dev, enum sensor_channel chan
 
 		if (gpio_pin_interrupt_configure_dt(&cfg->dout,
 						    GPIO_INT_EDGE_TO_INACTIVE) < 0) {
-			LOG_ERR("Failed to set dout GPIO interrupt");
+			LOG_ERR("Failed to set dout GPIO interrupt",0);
 		}
 
 		/* Wait until reading is ready */
