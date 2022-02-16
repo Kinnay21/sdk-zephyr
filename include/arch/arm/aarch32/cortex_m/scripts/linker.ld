@@ -28,36 +28,6 @@
 #define RAMABLE_REGION SRAM
 #endif
 
-#if USE_PARTITION_MANAGER
-
-#include <pm_config.h>
-
-#ifdef LINK_INTO_s1
-/* We are linking against S1, create symbol containing the flash ID of S0.
- * This is used when writing code operating on the "other" slot.
- */
-_image_1_primary_slot_id = PM_S0_ID;
-
-#define ROM_ADDR PM_ADDRESS + PM_S1_ADDRESS - PM_S0_ADDRESS
-
-#else /* ! LINK_INTO_s1 */
-
-#ifdef PM_S1_ID
-/* We are linking against S0, create symbol containing the flash ID of S1.
- * This is used when writing code operating on the "other" slot.
- */
-_image_1_primary_slot_id = PM_S1_ID;
-#endif /* PM_S1_ID */
-
-#define ROM_ADDR PM_ADDRESS
-#endif /* LINK_MCUBOOT_INTO_s1 */
-#define ROM_SIZE PM_SIZE
-
-#define RAM_SIZE PM_SRAM_SIZE
-#define RAM_ADDR PM_SRAM_ADDRESS
-
-#else /* ! USE_PARTITION_MANAGER */
-
 #if !defined(CONFIG_XIP) && (CONFIG_FLASH_SIZE == 0)
 #define ROM_ADDR RAM_ADDR
 #else
@@ -82,23 +52,6 @@ _image_1_primary_slot_id = PM_S1_ID;
 #else
 #define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_BOOTLOADER_SRAM_SIZE * 1K)
 #define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
-#endif
-
-#endif /* USE_PARTITION_MANAGER */
-
-#if DT_NODE_HAS_STATUS(DT_CHOSEN(zephyr_ccm), okay)
-#define CCM_SIZE DT_REG_SIZE(DT_CHOSEN(zephyr_ccm))
-#define CCM_ADDR DT_REG_ADDR(DT_CHOSEN(zephyr_ccm))
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_CHOSEN(zephyr_itcm), okay)
-#define ITCM_SIZE DT_REG_SIZE(DT_CHOSEN(zephyr_itcm))
-#define ITCM_ADDR DT_REG_ADDR(DT_CHOSEN(zephyr_itcm))
-#endif
-
-#if DT_NODE_HAS_STATUS(DT_CHOSEN(zephyr_dtcm), okay)
-#define DTCM_SIZE DT_REG_SIZE(DT_CHOSEN(zephyr_dtcm))
-#define DTCM_ADDR DT_REG_ADDR(DT_CHOSEN(zephyr_dtcm))
 #endif
 
 #if defined(CONFIG_CUSTOM_SECTION_ALIGN)
@@ -129,21 +82,21 @@ MEMORY
     FLASH (rx) : ORIGIN = ROM_ADDR, LENGTH = ROM_SIZE
     SRAM  (wx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE
     /* TI CCFG Registers */
-    LINKER_DT_REGION_FROM_NODE(FLASH_CCFG, rwx, DT_NODELABEL(ti_ccfg_partition))
+    LINKER_DT_REGION_FROM_NODE(DT_NODELABEL(ti_ccfg_partition), rwx)
     /* Data & Instruction Tightly Coupled Memory */
-    LINKER_DT_REGION_FROM_NODE(ITCM, rw, DT_CHOSEN(zephyr_itcm))
-    LINKER_DT_REGION_FROM_NODE(DTCM, rw, DT_CHOSEN(zephyr_dtcm))
+    LINKER_DT_REGION_FROM_NODE(DT_CHOSEN(zephyr_itcm), rw)
+    LINKER_DT_REGION_FROM_NODE(DT_CHOSEN(zephyr_dtcm), rw)
     /* STM32 Core Coupled Memory */
-    LINKER_DT_REGION_FROM_NODE(CCM, rw, DT_CHOSEN(zephyr_ccm))
+    LINKER_DT_REGION_FROM_NODE(DT_CHOSEN(zephyr_ccm), rw)
     /* STM32WB IPC RAM */
-    LINKER_DT_REGION_FROM_NODE(SRAM1, rw, DT_NODELABEL(sram1))
-    LINKER_DT_REGION_FROM_NODE(SRAM2, rw, DT_NODELABEL(sram2))
+    LINKER_DT_REGION_FROM_NODE(DT_NODELABEL(sram1), rw)
+    LINKER_DT_REGION_FROM_NODE(DT_NODELABEL(sram2), rw)
     /* STM32 alternate RAM configurations */
-    LINKER_DT_REGION_FROM_NODE(SRAM3, rw, DT_NODELABEL(sram3))
-    LINKER_DT_REGION_FROM_NODE(SRAM4, rw, DT_NODELABEL(sram4))
-    LINKER_DT_REGION_FROM_NODE(SDRAM1, rw, DT_NODELABEL(sdram1))
-    LINKER_DT_REGION_FROM_NODE(SDRAM2, rw, DT_NODELABEL(sdram2))
-    LINKER_DT_REGION_FROM_NODE(BACKUP_SRAM, rw, DT_NODELABEL(backup_sram))
+    LINKER_DT_REGION_FROM_NODE(DT_NODELABEL(sram3), rw)
+    LINKER_DT_REGION_FROM_NODE(DT_NODELABEL(sram4), rw)
+    LINKER_DT_REGION_FROM_NODE(DT_NODELABEL(sdram1), rw)
+    LINKER_DT_REGION_FROM_NODE(DT_NODELABEL(sdram2), rw)
+    LINKER_DT_REGION_FROM_NODE(DT_NODELABEL(backup_sram), rw)
     /* Used by and documented in include/linker/intlist.ld */
     IDT_LIST (wx) : ORIGIN = 0xFFFFF7FF, LENGTH = 2K
     }

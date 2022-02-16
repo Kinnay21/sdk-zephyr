@@ -18,6 +18,20 @@ LOG_MODULE_REGISTER(net_sock_tls, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #include <syscall_handler.h>
 #include <sys/fdtable.h>
 
+/* TODO: Remove all direct access to private fields.
+ * According with Mbed TLS migration guide:
+ *
+ * Direct access to fields of structures
+ * (`struct` types) declared in public headers is no longer
+ * supported. In Mbed TLS 3, the layout of structures is not
+ * considered part of the stable API, and minor versions (3.1, 3.2,
+ * etc.) may add, remove, rename, reorder or change the type of
+ * structure fields.
+ */
+#if !defined(MBEDTLS_ALLOW_PRIVATE_ACCESS)
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS
+#endif
+
 #if defined(CONFIG_MBEDTLS)
 #if !defined(CONFIG_MBEDTLS_CFG_FILE)
 #include "mbedtls/config.h"
@@ -44,6 +58,10 @@ LOG_MODULE_REGISTER(net_sock_tls, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #endif /* CONFIG_NET_SOCKETS_TLS_MAX_APP_PROTOCOLS */
 
 static const struct socket_op_vtable tls_sock_fd_op_vtable;
+
+#ifndef MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED
+#define MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED MBEDTLS_ERR_SSL_UNEXPECTED_MESSAGE
+#endif
 
 /** A list of secure tags that TLS context should use. */
 struct sec_tag_list {
@@ -113,6 +131,11 @@ __net_socket struct tls_context {
 
 		/** Peer verification level. */
 		int8_t verify_level;
+
+		/** Indicating on whether DER certificates should not be copied
+		 * to the heap.
+		 */
+		int8_t cert_nocopy;
 
 		/** DTLS role, client by default. */
 		int8_t role;
@@ -265,7 +288,7 @@ static int tls_init(const struct device *unused)
 
 #if !defined(CONFIG_ENTROPY_HAS_DRIVER)
 	NET_WARN("No entropy device on the system, "
-		 "TLS communication may be insecure!");
+		 "TLS communication is insecure!");
 #endif
 
 	(void)memset(tls_contexts, 0, sizeof(tls_contexts));
@@ -636,12 +659,30 @@ static int tls_rx(void *ctx, unsigned char *buf, size_t len)
 	return received;
 }
 
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+static bool crt_is_pem(const unsigned char *buf, size_t buflen)
+{
+	return (buflen != 0 && buf[buflen - 1] == '\0' &&
+		strstr((const char *)buf, "-----BEGIN CERTIFICATE-----") != NULL);
+}
+#endif
+
 static int tls_add_ca_certificate(struct tls_context *tls,
 				  struct tls_credential *ca_cert)
 {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
-	int err = mbedtls_x509_crt_parse(&tls->ca_chain,
-					 ca_cert->buf, ca_cert->len);
+	int err;
+
+	if (tls->options.cert_nocopy == TLS_CERT_NOCOPY_NONE ||
+	    crt_is_pem(ca_cert->buf, ca_cert->len)) {
+		err = mbedtls_x509_crt_parse(&tls->ca_chain, ca_cert->buf,
+					     ca_cert->len);
+	} else {
+		err = mbedtls_x509_crt_parse_der_nocopy(&tls->ca_chain,
+							ca_cert->buf,
+							ca_cert->len);
+	}
+
 	if (err != 0) {
 		return -EINVAL;
 	}
@@ -661,27 +702,58 @@ static void tls_set_ca_chain(struct tls_context *tls)
 #endif /* MBEDTLS_X509_CRT_PARSE_C */
 }
 
-static int tls_set_own_cert(struct tls_context *tls,
-			    struct tls_credential *own_cert,
-			    struct tls_credential *priv_key)
+static int tls_add_own_cert(struct tls_context *tls,
+			    struct tls_credential *own_cert)
 {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
-	int err = mbedtls_x509_crt_parse(&tls->own_cert,
-					 own_cert->buf, own_cert->len);
+	int err;
+
+	if (tls->options.cert_nocopy == TLS_CERT_NOCOPY_NONE ||
+	    crt_is_pem(own_cert->buf, own_cert->len)) {
+		err = mbedtls_x509_crt_parse(&tls->own_cert,
+					     own_cert->buf, own_cert->len);
+	} else {
+		err = mbedtls_x509_crt_parse_der_nocopy(&tls->own_cert,
+							own_cert->buf,
+							own_cert->len);
+	}
+
 	if (err != 0) {
 		return -EINVAL;
 	}
 
-	err = mbedtls_pk_parse_key(&tls->priv_key, priv_key->buf,
-				   priv_key->len, NULL, 0);
-	if (err != 0) {
-		return -EINVAL;
-	}
+	return 0;
+#endif /* MBEDTLS_X509_CRT_PARSE_C */
 
-	err = mbedtls_ssl_conf_own_cert(&tls->config, &tls->own_cert,
-					&tls->priv_key);
+	return -ENOTSUP;
+}
+
+static int tls_set_own_cert(struct tls_context *tls)
+{
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+	int err = mbedtls_ssl_conf_own_cert(&tls->config, &tls->own_cert,
+					    &tls->priv_key);
 	if (err != 0) {
 		err = -ENOMEM;
+	}
+
+	return err;
+#endif /* MBEDTLS_X509_CRT_PARSE_C */
+
+	return -ENOTSUP;
+}
+
+static int tls_set_private_key(struct tls_context *tls,
+			       struct tls_credential *priv_key)
+{
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+	int err;
+
+	err = mbedtls_pk_parse_key(&tls->priv_key, priv_key->buf,
+				   priv_key->len, NULL, 0,
+				   tls_ctr_drbg_random, NULL);
+	if (err != 0) {
+		return -EINVAL;
 	}
 
 	return 0;
@@ -717,21 +789,11 @@ static int tls_set_credential(struct tls_context *tls,
 		return tls_add_ca_certificate(tls, cred);
 
 	case TLS_CREDENTIAL_SERVER_CERTIFICATE:
-	{
-		struct tls_credential *priv_key =
-			credential_get(cred->tag, TLS_CREDENTIAL_PRIVATE_KEY);
-		if (!priv_key) {
-			return -ENOENT;
-		}
-
-		return tls_set_own_cert(tls, cred, priv_key);
-	}
+		return tls_add_own_cert(tls, cred);
 
 	case TLS_CREDENTIAL_PRIVATE_KEY:
-		/* Ignore private key - it will be used together
-		 * with public certificate
-		 */
-		break;
+		return tls_set_private_key(tls, cred);
+	break;
 
 	case TLS_CREDENTIAL_PSK:
 	{
@@ -762,7 +824,7 @@ static int tls_mbedtls_set_credentials(struct tls_context *tls)
 	struct tls_credential *cred;
 	sec_tag_t tag;
 	int i, err = 0;
-	bool tag_found, ca_cert_present = false;
+	bool tag_found, ca_cert_present = false, own_cert_present = false;
 
 	credentials_lock();
 
@@ -781,6 +843,8 @@ static int tls_mbedtls_set_credentials(struct tls_context *tls)
 
 			if (cred->type == TLS_CREDENTIAL_CA_CERTIFICATE) {
 				ca_cert_present = true;
+			} else if (cred->type == TLS_CREDENTIAL_SERVER_CERTIFICATE) {
+				own_cert_present = true;
 			}
 		}
 
@@ -793,8 +857,13 @@ static int tls_mbedtls_set_credentials(struct tls_context *tls)
 exit:
 	credentials_unlock();
 
-	if (err == 0 && ca_cert_present) {
-		tls_set_ca_chain(tls);
+	if (err == 0) {
+		if (ca_cert_present) {
+			tls_set_ca_chain(tls);
+		}
+		if (own_cert_present) {
+			err = tls_set_own_cert(tls);
+		}
 	}
 
 	return err;
@@ -849,7 +918,9 @@ static int tls_mbedtls_handshake(struct tls_context *context, bool block)
 
 	while ((ret = mbedtls_ssl_handshake(&context->ssl)) != 0) {
 		if (ret == MBEDTLS_ERR_SSL_WANT_READ ||
-		    ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+		    ret == MBEDTLS_ERR_SSL_WANT_WRITE ||
+		    ret == MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS ||
+		    ret == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS) {
 			if (block) {
 				continue;
 			}
@@ -876,9 +947,20 @@ static int tls_mbedtls_handshake(struct tls_context *context, bool block)
 				ret = -ETIMEDOUT;
 				break;
 			}
+		} else {
+			/* MbedTLS API documentation requires session to
+			 * be reset in other error cases
+			 */
+			NET_ERR("TLS handshake error: -%x", -ret);
+			ret = tls_mbedtls_reset(context);
+			if (ret == 0) {
+				ret = -ECONNABORTED;
+				break;
+			}
 		}
 
-		NET_ERR("TLS handshake error: -%x", -ret);
+		/* Avoid constant loop if tls_mbedtls_reset fails */
+		NET_ERR("TLS reset error: -%x", -ret);
 		ret = -ECONNABORTED;
 		break;
 	}
@@ -1304,6 +1386,31 @@ static int tls_opt_peer_verify_set(struct tls_context *context,
 	}
 
 	context->options.verify_level = *peer_verify;
+
+	return 0;
+}
+
+static int tls_opt_cert_nocopy_set(struct tls_context *context,
+				   const void *optval, socklen_t optlen)
+{
+	int *cert_nocopy;
+
+	if (!optval) {
+		return -EINVAL;
+	}
+
+	if (optlen != sizeof(int)) {
+		return -EINVAL;
+	}
+
+	cert_nocopy = (int *)optval;
+
+	if (*cert_nocopy != TLS_CERT_NOCOPY_NONE &&
+	    *cert_nocopy != TLS_CERT_NOCOPY_OPTIONAL) {
+		return -EINVAL;
+	}
+
+	context->options.cert_nocopy = *cert_nocopy;
 
 	return 0;
 }
@@ -2097,7 +2204,7 @@ static int ztls_poll_update_pollin(int fd, struct tls_context *ctx,
 	}
 
 	ret = ztls_socket_data_check(ctx);
-	if (ret == -ENOTCONN) {
+	if (ret == -ENOTCONN || (pfd->revents & ZSOCK_POLLHUP)) {
 		/* Datagram does not return 0 on consecutive recv, but an error
 		 * code, hence clear POLLIN.
 		 */
@@ -2441,6 +2548,10 @@ int ztls_setsockopt_ctx(struct tls_context *ctx, int level, int optname,
 
 	case TLS_PEER_VERIFY:
 		err = tls_opt_peer_verify_set(ctx, optval, optlen);
+		break;
+
+	case TLS_CERT_NOCOPY:
+		err = tls_opt_cert_nocopy_set(ctx, optval, optlen);
 		break;
 
 	case TLS_DTLS_ROLE:

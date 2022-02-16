@@ -18,6 +18,7 @@
 #include "util/mem.h"
 #include "util/memq.h"
 #include "util/mayfly.h"
+#include "util/dbuf.h"
 
 #include "ticker/ticker.h"
 
@@ -34,11 +35,11 @@
 #include "lll_filter.h"
 
 #include "ull_adv_types.h"
-#include "ull_scan_types.h"
 #include "ull_filter.h"
 
 #include "ull_internal.h"
 #include "ull_adv_internal.h"
+#include "ull_scan_types.h"
 #include "ull_scan_internal.h"
 #include "ull_sched_internal.h"
 
@@ -354,13 +355,20 @@ void ull_scan_params_set(struct lll_scan *lll, uint8_t type, uint16_t interval,
 
 uint8_t ull_scan_enable(struct ll_scan_set *scan)
 {
-	struct lll_scan *lll = &scan->lll;
 	uint32_t ticks_slot_overhead;
 	uint32_t volatile ret_cb;
 	uint32_t ticks_interval;
 	uint32_t ticks_anchor;
+	struct lll_scan *lll;
 	uint32_t ret;
 
+#if defined(CONFIG_BT_CTLR_ADV_EXT)
+	/* Initialize extend scan stop request */
+	scan->is_stop = 0U;
+#endif /* CONFIG_BT_CTLR_ADV_EXT */
+
+	/* Initialize LLL scan context */
+	lll = &scan->lll;
 	lll->init_addr_type = scan->own_addr_type;
 	(void)ll_addr_read(lll->init_addr_type, lll->init_addr);
 	lll->chan = 0U;
@@ -461,12 +469,42 @@ uint8_t ull_scan_disable(uint8_t handle, struct ll_scan_set *scan)
 {
 	int err;
 
+#if defined(CONFIG_BT_CTLR_ADV_EXT)
+	/* Request Extended Scan stop */
+	scan->is_stop = 1U;
+	cpu_dmb();
+#endif /* CONFIG_BT_CTLR_ADV_EXT */
+
 	err = ull_ticker_stop_with_mark(TICKER_ID_SCAN_BASE + handle,
 					scan, &scan->lll);
 	LL_ASSERT(err == 0 || err == -EALREADY);
 	if (err) {
 		return BT_HCI_ERR_CMD_DISALLOWED;
 	}
+
+#if defined(CONFIG_BT_CTLR_ADV_EXT)
+	/* Find and stop associated auxiliary scan contexts */
+	for (uint8_t aux_handle = 0; aux_handle < CONFIG_BT_CTLR_SCAN_AUX_SET;
+	     aux_handle++) {
+		struct lll_scan_aux *aux_scan_lll;
+		struct ll_scan_set *aux_scan;
+		struct ll_scan_aux_set *aux;
+
+		aux = ull_scan_aux_set_get(aux_handle);
+		aux_scan_lll = aux->parent;
+		if (!aux_scan_lll) {
+			continue;
+		}
+
+		aux_scan = HDR_LLL2ULL(aux_scan_lll);
+		if (aux_scan == scan) {
+			err = ull_scan_aux_stop(aux);
+			if (err && (err != -EALREADY)) {
+				return BT_HCI_ERR_CMD_DISALLOWED;
+			}
+		}
+	}
+#endif /* CONFIG_BT_CTLR_ADV_EXT */
 
 	return 0;
 }
@@ -489,19 +527,15 @@ void ull_scan_done(struct node_rx_event_done *done)
 		return;
 	}
 
-	rx_hdr = (void *)scan->node_rx_scan_term;
-	if (!rx_hdr) {
-		/* Prevent generation if another scan instance already did so.
-		 */
-		return;
-	}
+	/* Prevent duplicate terminate event generation */
+	lll->duration_reload = 0U;
 
 	handle = ull_scan_handle_get(scan);
 	LL_ASSERT(handle < BT_CTLR_SCAN_SET);
 
 #if defined(CONFIG_BT_CTLR_PHY_CODED)
-	/* Reset the singular node rx buffer, so that it does not get used if
-	 * ull_scan_done get called by the other scan instance.
+	/* Prevent duplicate terminate event if ull_scan_done get called by
+	 * the other scan instance.
 	 */
 	struct ll_scan_set *scan_other;
 
@@ -510,9 +544,10 @@ void ull_scan_done(struct node_rx_event_done *done)
 	} else {
 		scan_other = ull_scan_set_get(SCAN_HANDLE_1M);
 	}
-	scan_other->node_rx_scan_term = NULL;
+	scan_other->lll.duration_reload = 0U;
 #endif /* CONFIG_BT_CTLR_PHY_CODED */
 
+	rx_hdr = (void *)scan->node_rx_scan_term;
 	rx_hdr->type = NODE_RX_TYPE_EXT_SCAN_TERMINATE;
 	rx_hdr->handle = handle;
 
@@ -590,6 +625,19 @@ struct ll_scan_set *ull_scan_is_valid_get(struct ll_scan_set *scan)
 	return scan;
 }
 
+struct lll_scan *ull_scan_lll_is_valid_get(struct lll_scan *lll)
+{
+	struct ll_scan_set *scan;
+
+	scan = HDR_LLL2ULL(lll);
+	scan = ull_scan_is_valid_get(scan);
+	if (scan) {
+		return &scan->lll;
+	}
+
+	return NULL;
+}
+
 struct ll_scan_set *ull_scan_is_enabled_get(uint8_t handle)
 {
 	struct ll_scan_set *scan;
@@ -623,7 +671,7 @@ uint32_t ull_scan_is_enabled(uint8_t handle)
 #if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
 		scan = ull_scan_set_get(handle);
 
-		return scan->per_scan.sync ? ULL_SCAN_IS_SYNC : 0U;
+		return scan->periodic.sync ? ULL_SCAN_IS_SYNC : 0U;
 #else
 		return 0U;
 #endif
@@ -634,7 +682,7 @@ uint32_t ull_scan_is_enabled(uint8_t handle)
 		(scan->lll.conn ? ULL_SCAN_IS_INITIATOR : 0U) |
 #endif
 #if defined(CONFIG_BT_CTLR_SYNC_PERIODIC)
-		(scan->per_scan.sync ? ULL_SCAN_IS_SYNC : 0U) |
+		(scan->periodic.sync ? ULL_SCAN_IS_SYNC : 0U) |
 #endif
 		0U);
 }

@@ -4,46 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Override __DEPRECATED_MACRO so we don't get twister failures for
- * deprecated macros:
- * - DT_CLOCKS_LABEL_BY_IDX
- * - DT_CLOCKS_LABEL_BY_NAME
- * - DT_CLOCKS_LABEL
- * - DT_PWMS_LABEL_BY_IDX
- * - DT_PWMS_LABEL_BY_NAME
- * - DT_PWMS_LABEL
- * - DT_IO_CHANNELS_LABEL_BY_IDX
- * - DT_IO_CHANNELS_LABEL_BY_NAME
- * - DT_IO_CHANNELS_LABEL
- * - DT_DMAS_LABEL_BY_IDX
- * - DT_DMAS_LABEL_BY_NAME
- * - DT_INST_CLOCKS_LABEL_BY_IDX
- * - DT_INST_CLOCKS_LABEL_BY_NAME
- * - DT_INST_CLOCKS_LABEL
- * - DT_INST_PWMS_LABEL_BY_IDX
- * - DT_INST_PWMS_LABEL_BY_NAME
- * - DT_INST_PWMS_LABEL
- * - DT_INST_IO_CHANNELS_LABEL_BY_IDX
- * - DT_INST_IO_CHANNELS_LABEL_BY_NAME
- * - DT_INST_IO_CHANNELS_LABEL
- * - DT_INST_DMAS_LABEL_BY_IDX
- * - DT_INST_DMAS_LABEL_BY_NAME
- * - DT_ENUM_TOKEN
- * - DT_ENUM_UPPER_TOKEN
- */
-#define __DEPRECATED_MACRO
-
 #include <ztest.h>
 #include <devicetree.h>
 #include <device.h>
 #include <drivers/gpio.h>
+#include <drivers/mbox.h>
 
 #define TEST_CHILDREN	DT_PATH(test, test_children)
 #define TEST_DEADBEEF	DT_PATH(test, gpio_deadbeef)
 #define TEST_ABCD1234	DT_PATH(test, gpio_abcd1234)
 #define TEST_ALIAS	DT_ALIAS(test_alias)
 #define TEST_NODELABEL	DT_NODELABEL(test_nodelabel)
-#define TEST_INST	DT_INST(0, vnd_gpio)
+#define TEST_INST	DT_INST(0, vnd_gpio_device)
 #define TEST_ARRAYS	DT_NODELABEL(test_arrays)
 #define TEST_PH	DT_NODELABEL(test_phandles)
 #define TEST_IRQ	DT_NODELABEL(test_irq)
@@ -80,6 +52,9 @@
 #define TEST_IO_CHANNEL_CTLR_1 DT_NODELABEL(test_adc_1)
 #define TEST_IO_CHANNEL_CTLR_2 DT_NODELABEL(test_adc_2)
 
+#define TEST_RANGES_PCIE  DT_NODELABEL(test_ranges_pcie)
+#define TEST_RANGES_OTHER DT_NODELABEL(test_ranges_other)
+
 #define TA_HAS_COMPAT(compat) DT_NODE_HAS_COMPAT(TEST_ARRAYS, compat)
 
 #define TO_STRING(x) TO_STRING_(x)
@@ -96,7 +71,7 @@ static void test_path_props(void)
 	zassert_true(!strcmp(DT_PROP(TEST_DEADBEEF, status), "okay"), "");
 	zassert_equal(DT_PROP_LEN(TEST_DEADBEEF, compatible), 1, "");
 	zassert_true(!strcmp(DT_PROP_BY_IDX(TEST_DEADBEEF, compatible, 0),
-			     "vnd,gpio"), "");
+			     "vnd,gpio-device"), "");
 	zassert_true(DT_NODE_HAS_PROP(TEST_DEADBEEF, status), "");
 	zassert_false(DT_NODE_HAS_PROP(TEST_DEADBEEF, foobar), "");
 
@@ -109,7 +84,7 @@ static void test_path_props(void)
 	zassert_equal(DT_PROP_LEN_OR(TEST_ABCD1234, compatible, 4), 1, "");
 	zassert_equal(DT_PROP_LEN_OR(TEST_ABCD1234, invalid_property, 0), 0, "");
 	zassert_true(!strcmp(DT_PROP_BY_IDX(TEST_ABCD1234, compatible, 0),
-			     "vnd,gpio"), "");
+			     "vnd,gpio-device"), "");
 }
 
 static void test_alias_props(void)
@@ -123,7 +98,7 @@ static void test_alias_props(void)
 	zassert_true(!strcmp(DT_PROP(TEST_ALIAS, status), "okay"), "");
 	zassert_equal(DT_PROP_LEN(TEST_ALIAS, compatible), 1, "");
 	zassert_true(!strcmp(DT_PROP_BY_IDX(TEST_ALIAS, compatible, 0),
-			     "vnd,gpio"), "");
+			     "vnd,gpio-device"), "");
 }
 
 static void test_nodelabel_props(void)
@@ -137,11 +112,11 @@ static void test_nodelabel_props(void)
 	zassert_true(!strcmp(DT_PROP(TEST_NODELABEL, status), "okay"), "");
 	zassert_equal(DT_PROP_LEN(TEST_NODELABEL, compatible), 1, "");
 	zassert_true(!strcmp(DT_PROP_BY_IDX(TEST_NODELABEL, compatible, 0),
-			     "vnd,gpio"), "");
+			     "vnd,gpio-device"), "");
 }
 
 #undef DT_DRV_COMPAT
-#define DT_DRV_COMPAT vnd_gpio
+#define DT_DRV_COMPAT vnd_gpio_device
 static void test_inst_props(void)
 {
 	const char *label_startswith = "TEST_GPIO_";
@@ -159,7 +134,7 @@ static void test_inst_props(void)
 		     !strcmp(DT_PROP(TEST_INST, status), "disabled"), "");
 	zassert_equal(DT_PROP_LEN(TEST_INST, compatible), 1, "");
 	zassert_true(!strcmp(DT_PROP_BY_IDX(TEST_INST, compatible, 0),
-			     "vnd,gpio"), "");
+			     "vnd,gpio-device"), "");
 
 	zassert_equal(DT_INST_NODE_HAS_PROP(0, gpio_controller), 1, "");
 	zassert_equal(DT_INST_PROP(0, gpio_controller), 1, "");
@@ -168,7 +143,7 @@ static void test_inst_props(void)
 		     !strcmp(DT_PROP(TEST_INST, status), "disabled"), "");
 	zassert_equal(DT_INST_PROP_LEN(0, compatible), 1, "");
 	zassert_true(!strcmp(DT_INST_PROP_BY_IDX(0, compatible, 0),
-			     "vnd,gpio"), "");
+			     "vnd,gpio-device"), "");
 	zassert_true(!strncmp(label_startswith, DT_INST_LABEL(0),
 			      strlen(label_startswith)), "");
 }
@@ -241,11 +216,11 @@ static void test_has_alias(void)
 
 static void test_inst_checks(void)
 {
-	zassert_equal(DT_NODE_EXISTS(DT_INST(0, vnd_gpio)), 1, "");
-	zassert_equal(DT_NODE_EXISTS(DT_INST(1, vnd_gpio)), 1, "");
-	zassert_equal(DT_NODE_EXISTS(DT_INST(2, vnd_gpio)), 1, "");
+	zassert_equal(DT_NODE_EXISTS(DT_INST(0, vnd_gpio_device)), 1, "");
+	zassert_equal(DT_NODE_EXISTS(DT_INST(1, vnd_gpio_device)), 1, "");
+	zassert_equal(DT_NODE_EXISTS(DT_INST(2, vnd_gpio_device)), 1, "");
 
-	zassert_equal(DT_NUM_INST_STATUS_OKAY(vnd_gpio), 2, "");
+	zassert_equal(DT_NUM_INST_STATUS_OKAY(vnd_gpio_device), 2, "");
 	zassert_equal(DT_NUM_INST_STATUS_OKAY(xxxx), 0, "");
 }
 
@@ -264,8 +239,8 @@ static void test_has_compat(void)
 {
 	unsigned int compats;
 
-	zassert_true(DT_HAS_COMPAT_STATUS_OKAY(vnd_gpio), "");
-	zassert_true(DT_HAS_COMPAT_STATUS_OKAY(vnd_gpio), "");
+	zassert_true(DT_HAS_COMPAT_STATUS_OKAY(vnd_gpio_device), "");
+	zassert_true(DT_HAS_COMPAT_STATUS_OKAY(vnd_gpio_device), "");
 	zassert_false(DT_HAS_COMPAT_STATUS_OKAY(vnd_disabled_compat), "");
 
 	zassert_equal(TA_HAS_COMPAT(vnd_array_holder), 1, "");
@@ -882,28 +857,6 @@ static void test_gpio(void)
 #define DT_DRV_COMPAT vnd_adc_temp_sensor
 static void test_io_channels(void)
 {
-	zassert_true(!strcmp(DT_IO_CHANNELS_LABEL_BY_IDX(TEST_TEMP, 0),
-			     "TEST_ADC_1"), "");
-	zassert_true(!strcmp(DT_IO_CHANNELS_LABEL_BY_IDX(TEST_TEMP, 1),
-			     "TEST_ADC_2"), "");
-	zassert_true(!strcmp(DT_IO_CHANNELS_LABEL_BY_NAME(TEST_TEMP, ch1),
-			     "TEST_ADC_1"), "");
-	zassert_true(!strcmp(DT_IO_CHANNELS_LABEL_BY_NAME(TEST_TEMP, ch2),
-			     "TEST_ADC_2"), "");
-	zassert_true(!strcmp(DT_IO_CHANNELS_LABEL(TEST_TEMP),
-			     "TEST_ADC_1"), "");
-
-	zassert_true(!strcmp(DT_INST_IO_CHANNELS_LABEL_BY_IDX(0, 0),
-			     "TEST_ADC_1"), "");
-	zassert_true(!strcmp(DT_INST_IO_CHANNELS_LABEL_BY_IDX(0, 1),
-			     "TEST_ADC_2"), "");
-	zassert_true(!strcmp(DT_INST_IO_CHANNELS_LABEL_BY_NAME(0, ch1),
-			     "TEST_ADC_1"), "");
-	zassert_true(!strcmp(DT_INST_IO_CHANNELS_LABEL_BY_NAME(0, ch2),
-			     "TEST_ADC_2"), "");
-	zassert_true(!strcmp(DT_INST_IO_CHANNELS_LABEL(0),
-			     "TEST_ADC_1"), "");
-
 	/* DT_IO_CHANNELS_CTLR_BY_IDX */
 	zassert_true(DT_SAME_NODE(DT_IO_CHANNELS_CTLR_BY_IDX(TEST_TEMP, 0),
 				  TEST_IO_CHANNEL_CTLR_1), "");
@@ -953,24 +906,6 @@ static void test_io_channels(void)
 #define DT_DRV_COMPAT vnd_adc_temp_sensor
 static void test_dma(void)
 {
-	zassert_true(!strcmp(DT_DMAS_LABEL_BY_NAME(TEST_TEMP, rx),
-			     "TEST_DMA_CTRL_2"), "");
-	zassert_true(!strcmp(DT_INST_DMAS_LABEL_BY_NAME(0, rx),
-			     "TEST_DMA_CTRL_2"), "");
-	zassert_true(!strcmp(DT_DMAS_LABEL_BY_NAME(TEST_TEMP, tx),
-			     "TEST_DMA_CTRL_1"), "");
-	zassert_true(!strcmp(DT_INST_DMAS_LABEL_BY_NAME(0, tx),
-			     "TEST_DMA_CTRL_1"), "");
-
-	zassert_true(!strcmp(DT_DMAS_LABEL_BY_IDX(TEST_TEMP, 1),
-			     "TEST_DMA_CTRL_2"), "");
-	zassert_true(!strcmp(DT_INST_DMAS_LABEL_BY_IDX(0, 1),
-			     "TEST_DMA_CTRL_2"), "");
-	zassert_true(!strcmp(DT_DMAS_LABEL_BY_IDX(TEST_TEMP, 0),
-			     "TEST_DMA_CTRL_1"), "");
-	zassert_true(!strcmp(DT_INST_DMAS_LABEL_BY_IDX(0, 0),
-			     "TEST_DMA_CTRL_1"), "");
-
 	/* DT_DMAS_CTLR_BY_IDX */
 	zassert_true(DT_SAME_NODE(DT_DMAS_CTLR_BY_IDX(TEST_TEMP, 0),
 				  TEST_DMA_CTLR_1), "");
@@ -1027,17 +962,6 @@ static void test_dma(void)
 #define DT_DRV_COMPAT vnd_phandle_holder
 static void test_pwms(void)
 {
-	/* DT_PWMS_LABEL_BY_IDX */
-	zassert_true(!strcmp(DT_PWMS_LABEL_BY_IDX(TEST_PH, 0),
-			     "TEST_PWM_CTRL_1"), "");
-
-	/* DT_PWMS_LABEL_BY_NAME */
-	zassert_true(!strcmp(DT_PWMS_LABEL_BY_NAME(TEST_PH, red),
-			     "TEST_PWM_CTRL_1"), "");
-
-	/* DT_PWMS_LABEL */
-	zassert_true(!strcmp(DT_PWMS_LABEL(TEST_PH), "TEST_PWM_CTRL_1"), "");
-
 	/* DT_PWMS_CTLR_BY_IDX */
 	zassert_true(DT_SAME_NODE(DT_PWMS_CTLR_BY_IDX(TEST_PH, 0),
 				  TEST_PWM_CTLR_1), "");
@@ -1098,17 +1022,6 @@ static void test_pwms(void)
 
 	/* DT_INST */
 	zassert_equal(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT), 1, "");
-
-	/* DT_INST_PWMS_LABEL_BY_IDX */
-	zassert_true(!strcmp(DT_INST_PWMS_LABEL_BY_IDX(0, 0),
-			     "TEST_PWM_CTRL_1"), "");
-
-	/* DT_INST_PWMS_LABEL_BY_NAME */
-	zassert_true(!strcmp(DT_INST_PWMS_LABEL_BY_NAME(0, green),
-			     "TEST_PWM_CTRL_2"), "");
-
-	/* DT_INST_PWMS_LABEL */
-	zassert_true(!strcmp(DT_INST_PWMS_LABEL(0), "TEST_PWM_CTRL_1"), "");
 
 	/* DT_INST_PWMS_CTLR_BY_IDX */
 	zassert_true(DT_SAME_NODE(DT_INST_PWMS_CTLR_BY_IDX(0, 0),
@@ -1261,7 +1174,7 @@ static void test_arrays(void)
 }
 
 #undef DT_DRV_COMPAT
-#define DT_DRV_COMPAT vnd_gpio
+#define DT_DRV_COMPAT vnd_gpio_device
 static void test_foreach_status_okay(void)
 {
 	/*
@@ -1405,9 +1318,9 @@ static int test_gpio_init(const struct device *dev)
 	return 0;
 }
 
-#define INST(num) DT_INST(num, vnd_gpio)
+#define INST(num) DT_INST(num, vnd_gpio_device)
 #undef DT_DRV_COMPAT
-#define DT_DRV_COMPAT vnd_gpio
+#define DT_DRV_COMPAT vnd_gpio_device
 
 static const struct gpio_driver_api test_api;
 
@@ -1431,23 +1344,16 @@ static const struct gpio_driver_api test_api;
 
 DT_INST_FOREACH_STATUS_OKAY(TEST_GPIO_INIT)
 
-static inline struct test_gpio_data *to_data(const struct device *dev)
-{
-	return (struct test_gpio_data *)dev->data;
-}
-
-static inline const struct test_gpio_info *to_info(const struct device *dev)
-{
-	return (const struct test_gpio_info *)dev->config;
-}
-
 static void test_devices(void)
 {
 	const struct device *devs[3];
 	int i = 0;
 	const struct device *dev_abcd;
+	struct test_gpio_data *data_dev0;
+	struct test_gpio_data *data_dev1;
+	const struct test_gpio_info *config_abdc;
 
-	zassert_equal(DT_NUM_INST_STATUS_OKAY(vnd_gpio), 2, "");
+	zassert_equal(DT_NUM_INST_STATUS_OKAY(vnd_gpio_device), 2, "");
 
 	devs[i] = device_get_binding(DT_LABEL(INST(0)));
 	if (devs[i]) {
@@ -1462,19 +1368,23 @@ static void test_devices(void)
 		i++;
 	}
 
+	data_dev0 = devs[0]->data;
+	data_dev1 = devs[1]->data;
+
 	zassert_not_null(devs[0], "");
 	zassert_not_null(devs[1], "");
 	zassert_true(devs[2] == NULL, "");
 
-	zassert_true(to_data(devs[0])->is_gpio_ctlr, "");
-	zassert_true(to_data(devs[1])->is_gpio_ctlr, "");
-	zassert_true(to_data(devs[0])->init_called, "");
-	zassert_true(to_data(devs[1])->init_called, "");
+	zassert_true(data_dev0->is_gpio_ctlr, "");
+	zassert_true(data_dev1->is_gpio_ctlr, "");
+	zassert_true(data_dev0->init_called, "");
+	zassert_true(data_dev1->init_called, "");
 
 	dev_abcd = device_get_binding(DT_LABEL(TEST_ABCD1234));
+	config_abdc = dev_abcd->config;
 	zassert_not_null(dev_abcd, "");
-	zassert_equal(to_info(dev_abcd)->reg_addr, 0xabcd1234, "");
-	zassert_equal(to_info(dev_abcd)->reg_len, 0x500, "");
+	zassert_equal(config_abdc->reg_addr, 0xabcd1234, "");
+	zassert_equal(config_abdc->reg_len, 0x500, "");
 }
 
 static void test_cs_gpios(void)
@@ -1512,9 +1422,6 @@ static void test_enums(void)
 	};
 
 	zassert_equal(DT_ENUM_IDX(TEST_ENUM_0, val), 0, "0");
-	zassert_equal(TO_MY_ENUM(DT_ENUM_TOKEN(TEST_ENUM_0, val)), 0xff, "");
-	zassert_equal(TO_MY_ENUM(DT_ENUM_UPPER_TOKEN(TEST_ENUM_0, val)),
-		      0xaa, "");
 }
 #undef TO_MY_ENUM
 #undef TO_MY_ENUM_2
@@ -1535,6 +1442,18 @@ static void test_enums_required_false(void)
 		      4, "");
 }
 
+static void test_inst_enums(void)
+{
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_enum_holder_inst
+	zassert_equal(DT_INST_ENUM_IDX(0, val), 0, "");
+	zassert_equal(DT_INST_ENUM_IDX_OR(0, val, 2), 0, "");
+
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_enum_required_false_holder_inst
+	zassert_equal(DT_INST_ENUM_IDX_OR(0, val, 2), 2, "");
+}
+
 #undef DT_DRV_COMPAT
 #define DT_DRV_COMPAT vnd_adc_temp_sensor
 static void test_clocks(void)
@@ -1550,17 +1469,6 @@ static void test_clocks(void)
 	/* DT_CLOCKS_CTLR_BY_NAME */
 	zassert_true(DT_SAME_NODE(DT_CLOCKS_CTLR_BY_NAME(TEST_TEMP, clk_b),
 				  DT_NODELABEL(test_clk)), "");
-
-	/* DT_CLOCKS_LABEL_BY_IDX */
-	zassert_true(!strcmp(DT_CLOCKS_LABEL_BY_IDX(TEST_TEMP, 0),
-			     "TEST_CLOCK"), "");
-
-	/* DT_CLOCKS_LABEL_BY_NAME */
-	zassert_true(!strcmp(DT_CLOCKS_LABEL_BY_NAME(TEST_TEMP, clk_b),
-			     "TEST_CLOCK"), "");
-
-	/* DT_CLOCKS_LABEL */
-	zassert_true(!strcmp(DT_CLOCKS_LABEL(TEST_TEMP), "TEST_CLOCK"), "");
 
 	/* DT_CLOCKS_CELL_BY_IDX */
 	zassert_equal(DT_CLOCKS_CELL_BY_IDX(TEST_TEMP, 2, bits), 2, "");
@@ -1594,17 +1502,6 @@ static void test_clocks(void)
 	zassert_true(DT_SAME_NODE(DT_INST_CLOCKS_CTLR_BY_NAME(0, clk_b),
 				  DT_NODELABEL(test_clk)), "");
 
-	/* DT_INST_CLOCKS_LABEL_BY_IDX */
-	zassert_true(!strcmp(DT_INST_CLOCKS_LABEL_BY_IDX(0, 0),
-			     "TEST_CLOCK"), "");
-
-	/* DT_INST_CLOCKS_LABEL_BY_NAME */
-	zassert_true(!strcmp(DT_INST_CLOCKS_LABEL_BY_NAME(0, clk_b),
-			     "TEST_CLOCK"), "");
-
-	/* DT_INST_CLOCKS_LABEL */
-	zassert_true(!strcmp(DT_INST_CLOCKS_LABEL(0), "TEST_CLOCK"), "");
-
 	/* DT_INST_CLOCKS_CELL_BY_IDX */
 	zassert_equal(DT_INST_CLOCKS_CELL_BY_IDX(0, 2, bits), 2, "");
 	zassert_equal(DT_INST_CLOCKS_CELL_BY_IDX(0, 2, bus), 8, "");
@@ -1623,11 +1520,20 @@ static void test_clocks(void)
 		      25000000, "");
 }
 
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_spi_device
 static void test_parent(void)
 {
 	/* The label of a child node's parent is the label of the parent. */
 	zassert_true(!strcmp(DT_LABEL(DT_PARENT(TEST_SPI_DEV_0)),
 			     DT_LABEL(TEST_SPI_BUS_0)), "");
+
+	/*
+	 * The parent's label for the first instance of vnd,spi-device,
+	 * child of TEST_SPI, is the same as TEST_SPI.
+	 */
+	zassert_true(!strcmp(DT_LABEL(DT_INST_PARENT(0)),
+			     DT_LABEL(TEST_SPI)), "");
 	/*
 	 * We should be able to use DT_PARENT() even with nodes, like /test,
 	 * that have no matching compatible.
@@ -1720,6 +1626,123 @@ static void test_child_nodes_list_varg(void)
 static void test_great_grandchild(void)
 {
 	zassert_equal(DT_PROP(DT_NODELABEL(test_ggc), ggc_prop), 42, "");
+}
+
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_test_ranges_pcie
+static void test_ranges_pcie(void)
+{
+#define FLAGS(node_id, idx)				\
+	DT_RANGES_CHILD_BUS_FLAGS_BY_IDX(node_id, idx),
+#define CHILD_BUS_ADDR(node_id, idx)				\
+	DT_RANGES_CHILD_BUS_ADDRESS_BY_IDX(node_id, idx),
+#define PARENT_BUS_ADDR(node_id, idx)				\
+	DT_RANGES_PARENT_BUS_ADDRESS_BY_IDX(node_id, idx),
+#define LENGTH(node_id, idx) DT_RANGES_LENGTH_BY_IDX(node_id, idx),
+
+	unsigned int count = DT_NUM_RANGES(TEST_RANGES_PCIE);
+
+	const uint64_t ranges_pcie_flags[] = {
+		DT_FOREACH_RANGE(TEST_RANGES_PCIE, FLAGS)
+	};
+
+	const uint64_t ranges_child_bus_addr[] = {
+		DT_FOREACH_RANGE(TEST_RANGES_PCIE, CHILD_BUS_ADDR)
+	};
+
+	const uint64_t ranges_parent_bus_addr[] = {
+		DT_FOREACH_RANGE(TEST_RANGES_PCIE, PARENT_BUS_ADDR)
+	};
+
+	const uint64_t ranges_length[] = {
+		DT_FOREACH_RANGE(TEST_RANGES_PCIE, LENGTH)
+	};
+
+	zassert_equal(count, 3, "");
+
+	zassert_equal(DT_RANGES_HAS_IDX(TEST_RANGES_PCIE, 0), 1, "");
+	zassert_equal(DT_RANGES_HAS_IDX(TEST_RANGES_PCIE, 1), 1, "");
+	zassert_equal(DT_RANGES_HAS_IDX(TEST_RANGES_PCIE, 2), 1, "");
+	zassert_equal(DT_RANGES_HAS_IDX(TEST_RANGES_PCIE, 3), 0, "");
+
+	zassert_equal(DT_RANGES_HAS_CHILD_BUS_FLAGS_AT_IDX(TEST_RANGES_PCIE, 0),
+		      1, "");
+	zassert_equal(DT_RANGES_HAS_CHILD_BUS_FLAGS_AT_IDX(TEST_RANGES_PCIE, 1),
+		      1, "");
+	zassert_equal(DT_RANGES_HAS_CHILD_BUS_FLAGS_AT_IDX(TEST_RANGES_PCIE, 2),
+		      1, "");
+	zassert_equal(DT_RANGES_HAS_CHILD_BUS_FLAGS_AT_IDX(TEST_RANGES_PCIE, 3),
+		      0, "");
+
+	zassert_equal(ranges_pcie_flags[0], 0x1000000, "");
+	zassert_equal(ranges_pcie_flags[1], 0x2000000, "");
+	zassert_equal(ranges_pcie_flags[2], 0x3000000, "");
+	zassert_equal(ranges_child_bus_addr[0], 0, "");
+	zassert_equal(ranges_child_bus_addr[1], 0x10000000, "");
+	zassert_equal(ranges_child_bus_addr[2], 0x8000000000, "");
+	zassert_equal(ranges_parent_bus_addr[0], 0x3eff0000, "");
+	zassert_equal(ranges_parent_bus_addr[1], 0x10000000, "");
+	zassert_equal(ranges_parent_bus_addr[2], 0x8000000000, "");
+	zassert_equal(ranges_length[0], 0x10000, "");
+	zassert_equal(ranges_length[1], 0x2eff0000, "");
+	zassert_equal(ranges_length[2], 0x8000000000, "");
+
+#undef FLAGS
+#undef CHILD_BUS_ADDR
+#undef PARENT_BUS_ADDR
+#undef LENGTH
+}
+
+static void test_ranges_other(void)
+{
+#define HAS_FLAGS(node_id, idx) \
+	DT_RANGES_HAS_CHILD_BUS_FLAGS_AT_IDX(node_id, idx)
+#define FLAGS(node_id, idx) \
+	DT_RANGES_CHILD_BUS_FLAGS_BY_IDX(node_id, idx),
+#define CHILD_BUS_ADDR(node_id, idx) \
+	DT_RANGES_CHILD_BUS_ADDRESS_BY_IDX(node_id, idx),
+#define PARENT_BUS_ADDR(node_id, idx) \
+	DT_RANGES_PARENT_BUS_ADDRESS_BY_IDX(node_id, idx),
+#define LENGTH(node_id, idx) DT_RANGES_LENGTH_BY_IDX(node_id, idx),
+
+	unsigned int count = DT_NUM_RANGES(TEST_RANGES_OTHER);
+
+	const uint32_t ranges_child_bus_addr[] = {
+		DT_FOREACH_RANGE(TEST_RANGES_OTHER, CHILD_BUS_ADDR)
+	};
+
+	const uint32_t ranges_parent_bus_addr[] = {
+		DT_FOREACH_RANGE(TEST_RANGES_OTHER, PARENT_BUS_ADDR)
+	};
+
+	const uint32_t ranges_length[] = {
+		DT_FOREACH_RANGE(TEST_RANGES_OTHER, LENGTH)
+	};
+
+	zassert_equal(count, 2, "");
+
+	zassert_equal(DT_RANGES_HAS_IDX(TEST_RANGES_OTHER, 0), 1, "");
+	zassert_equal(DT_RANGES_HAS_IDX(TEST_RANGES_OTHER, 1), 1, "");
+	zassert_equal(DT_RANGES_HAS_IDX(TEST_RANGES_OTHER, 2), 0, "");
+	zassert_equal(DT_RANGES_HAS_IDX(TEST_RANGES_OTHER, 3), 0, "");
+
+	zassert_equal(HAS_FLAGS(TEST_RANGES_OTHER, 0), 0, "");
+	zassert_equal(HAS_FLAGS(TEST_RANGES_OTHER, 1), 0, "");
+	zassert_equal(HAS_FLAGS(TEST_RANGES_OTHER, 2), 0, "");
+	zassert_equal(HAS_FLAGS(TEST_RANGES_OTHER, 3), 0, "");
+
+	zassert_equal(ranges_child_bus_addr[0], 0, "");
+	zassert_equal(ranges_child_bus_addr[1], 0x10000000, "");
+	zassert_equal(ranges_parent_bus_addr[0], 0x3eff0000, "");
+	zassert_equal(ranges_parent_bus_addr[1], 0x10000000, "");
+	zassert_equal(ranges_length[0], 0x10000, "");
+	zassert_equal(ranges_length[1], 0x2eff0000, "");
+
+#undef HAS_FLAGS
+#undef FLAGS
+#undef CHILD_BUS_ADDR
+#undef PARENT_BUS_ADDR
+#undef LENGTH
 }
 
 static void test_compat_get_any_status_okay(void)
@@ -2078,6 +2101,38 @@ static void test_pinctrl(void)
 	zassert_equal(DT_INST_PINCTRL_HAS_NAME(0, f_o_o2), 0, "");
 }
 
+static void test_mbox(void)
+{
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT vnd_adc_temp_sensor
+
+	const struct mbox_channel channel_tx = MBOX_DT_CHANNEL_GET(TEST_TEMP, tx);
+	const struct mbox_channel channel_rx = MBOX_DT_CHANNEL_GET(TEST_TEMP, rx);
+
+	zassert_equal(channel_tx.id, 1, "");
+	zassert_equal(channel_rx.id, 2, "");
+
+	zassert_equal(MBOX_DT_CHANNEL_ID_BY_NAME(TEST_TEMP, tx), 1, "");
+	zassert_equal(MBOX_DT_CHANNEL_ID_BY_NAME(TEST_TEMP, rx), 2, "");
+
+	zassert_true(DT_SAME_NODE(MBOX_DT_CTLR_BY_NAME(TEST_TEMP, tx),
+				  DT_NODELABEL(test_mbox)), "");
+	zassert_true(DT_SAME_NODE(MBOX_DT_CTLR_BY_NAME(TEST_TEMP, rx),
+				  DT_NODELABEL(test_mbox)), "");
+
+	zassert_equal(MBOX_DT_CHANNEL_ID_BY_NAME(TEST_TEMP, tx), 1, "");
+	zassert_equal(MBOX_DT_CHANNEL_ID_BY_NAME(TEST_TEMP, rx), 2, "");
+
+	const struct mbox_channel channel_zero = MBOX_DT_CHANNEL_GET(TEST_TEMP, zero);
+
+	zassert_equal(channel_zero.id, 0, "");
+
+	zassert_equal(MBOX_DT_CHANNEL_ID_BY_NAME(TEST_TEMP, zero), 0, "");
+
+	zassert_true(DT_SAME_NODE(MBOX_DT_CTLR_BY_NAME(TEST_TEMP, zero),
+				  DT_NODELABEL(test_mbox_zero_cell)), "");
+}
+
 void test_main(void)
 {
 	ztest_test_suite(devicetree_api,
@@ -2110,17 +2165,21 @@ void test_main(void)
 			 ztest_unit_test(test_chosen),
 			 ztest_unit_test(test_enums),
 			 ztest_unit_test(test_enums_required_false),
+			 ztest_unit_test(test_inst_enums),
 			 ztest_unit_test(test_clocks),
 			 ztest_unit_test(test_parent),
 			 ztest_unit_test(test_child_nodes_list),
 			 ztest_unit_test(test_child_nodes_list_varg),
 			 ztest_unit_test(test_great_grandchild),
+			 ztest_unit_test(test_ranges_pcie),
+			 ztest_unit_test(test_ranges_other),
 			 ztest_unit_test(test_compat_get_any_status_okay),
 			 ztest_unit_test(test_dep_ord),
 			 ztest_unit_test(test_path),
 			 ztest_unit_test(test_node_name),
 			 ztest_unit_test(test_same_node),
-			 ztest_unit_test(test_pinctrl)
+			 ztest_unit_test(test_pinctrl),
+			 ztest_unit_test(test_mbox)
 		);
 	ztest_run_test_suite(devicetree_api);
 }

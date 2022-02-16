@@ -8,6 +8,7 @@ menu "L2CAP Options"
 config BT_L2CAP_TX_BUF_COUNT
 	int "Number of L2CAP TX buffers"
 	default NET_BUF_TX_COUNT if NET_L2_BT
+	default 10 if BT_MCS
 	default BT_BUF_ACL_TX_COUNT
 	range 2 255
 	help
@@ -45,7 +46,7 @@ config BT_L2CAP_DYNAMIC_CHANNEL
 	  allowing the creation of dynamic L2CAP Channels.
 
 config BT_L2CAP_ECRED
-	bool "L2CAP Enhanced Credit Based Flow Control support [EXPERIMENTAL]"
+	bool "L2CAP Enhanced Credit Based Flow Control support"
 	depends on BT_L2CAP_DYNAMIC_CHANNEL
 	help
 	  This option enables support for LE Connection oriented Channels with

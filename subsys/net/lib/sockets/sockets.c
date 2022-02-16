@@ -331,6 +331,15 @@ static void zsock_accepted_cb(struct net_context *new_ctx,
 		k_condvar_init(&new_ctx->cond.recv);
 
 		k_fifo_put(&parent->accept_q, new_ctx);
+
+		/* TCP context is effectively owned by both application
+		 * and the stack: stack may detect that peer closed/aborted
+		 * connection, but it must not dispose of the context behind
+		 * the application back. Likewise, when application "closes"
+		 * context, it's not disposed of immediately - there's yet
+		 * closing handshake for stack to perform.
+		 */
+		net_context_ref(new_ctx);
 	}
 }
 
@@ -530,6 +539,8 @@ int zsock_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 		if (net_pkt_eof(last_pkt)) {
 			sock_set_eof(ctx);
 			z_free_fd(fd);
+			zsock_flush_queue(ctx);
+			net_context_unref(ctx);
 			errno = ECONNABORTED;
 			return -1;
 		}
@@ -538,6 +549,8 @@ int zsock_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 	if (net_context_is_closing(ctx)) {
 		errno = ECONNABORTED;
 		z_free_fd(fd);
+		zsock_flush_queue(ctx);
+		net_context_unref(ctx);
 		return -1;
 	}
 
@@ -558,18 +571,11 @@ int zsock_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 		} else {
 			z_free_fd(fd);
 			errno = ENOTSUP;
+			zsock_flush_queue(ctx);
+			net_context_unref(ctx);
 			return -1;
 		}
 	}
-
-	/* TCP context is effectively owned by both application
-	 * and the stack: stack may detect that peer closed/aborted
-	 * connection, but it must not dispose of the context behind
-	 * the application back. Likewise, when application "closes"
-	 * context, it's not disposed of immediately - there's yet
-	 * closing handshake for stack to perform.
-	 */
-	net_context_ref(ctx);
 
 	NET_DBG("accept: ctx=%p, fd=%d", ctx, fd);
 
@@ -866,7 +872,7 @@ static int sock_get_pkt_src_addr(struct net_pkt *pkt,
 			goto error;
 		}
 
-		net_ipaddr_copy(&addr4->sin_addr, &ipv4_hdr->src);
+		net_ipv4_addr_copy_raw((uint8_t *)&addr4->sin_addr, ipv4_hdr->src);
 		port = &addr4->sin_port;
 	} else if (IS_ENABLED(CONFIG_NET_IPV6) &&
 		   net_pkt_family(pkt) == AF_INET6) {
@@ -889,7 +895,7 @@ static int sock_get_pkt_src_addr(struct net_pkt *pkt,
 			goto error;
 		}
 
-		net_ipaddr_copy(&addr6->sin6_addr, &ipv6_hdr->src);
+		net_ipv6_addr_copy_raw((uint8_t *)&addr6->sin6_addr, ipv6_hdr->src);
 		port = &addr6->sin6_port;
 	} else {
 		ret = -ENOTSUP;
@@ -960,7 +966,7 @@ void net_socket_update_tc_rx_time(struct net_pkt *pkt, uint32_t end_tick)
 	}
 }
 
-static int wait_data(struct net_context *ctx, k_timeout_t *timeout)
+int zsock_wait_data(struct net_context *ctx, k_timeout_t *timeout)
 {
 	if (ctx->cond.lock == NULL) {
 		/* For some reason the lock pointer is not set properly
@@ -1001,7 +1007,7 @@ static inline ssize_t zsock_recv_dgram(struct net_context *ctx,
 
 		net_context_get_option(ctx, NET_OPT_RCVTIMEO, &timeout, NULL);
 
-		ret = wait_data(ctx, &timeout);
+		ret = zsock_wait_data(ctx, &timeout);
 		if (ret < 0) {
 			errno = -ret;
 			return -1;
@@ -1140,7 +1146,7 @@ static inline ssize_t zsock_recv_stream(struct net_context *ctx,
 		}
 
 		if (!K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
-			res = wait_data(ctx, &timeout);
+			res = zsock_wait_data(ctx, &timeout);
 			if (res < 0) {
 				errno = -res;
 				return -1;
@@ -1362,6 +1368,10 @@ static int zsock_poll_update_ctx(struct net_context *ctx,
 			pfd->revents |= ZSOCK_POLLIN;
 		}
 		(*pev)++;
+	}
+
+	if (sock_is_eof(ctx)) {
+		pfd->revents |= ZSOCK_POLLHUP;
 	}
 
 	return 0;
@@ -1991,26 +2001,7 @@ int zsock_getsockname_ctx(struct net_context *ctx, struct sockaddr *addr,
 int z_impl_zsock_getsockname(int sock, struct sockaddr *addr,
 			     socklen_t *addrlen)
 {
-	const struct socket_op_vtable *vtable;
-	struct k_mutex *lock;
-	void *ctx;
-	int ret;
-
-	ctx = get_sock_vtable(sock, &vtable, &lock);
-	if (ctx == NULL) {
-		errno = EBADF;
-		return -1;
-	}
-
-	NET_DBG("getsockname: ctx=%p, fd=%d", ctx, sock);
-
-	(void)k_mutex_lock(lock, K_FOREVER);
-
-	ret = vtable->getsockname(ctx, addr, addrlen);
-
-	k_mutex_unlock(lock);
-
-	return ret;
+	VTABLE_CALL(getsockname, sock, addr, addrlen);
 }
 
 #ifdef CONFIG_USERSPACE

@@ -32,8 +32,7 @@ void test_flash_area_get_sectors(void)
 	zassert_true(rc == 0, "flash_area_open() fail");
 
 	/* First erase the area so it's ready for use. */
-	flash_dev =
-		device_get_binding(DT_CHOSEN_ZEPHYR_FLASH_CONTROLLER_LABEL);
+	flash_dev = flash_area_get_device(fa);
 
 	/* Device obtained by label should match the one from fa object */
 	zassert_equal(flash_dev, flash_dev_a, "Device for image_1 do not match");
