@@ -17,9 +17,6 @@ User and Developer Guides
    debug_tools/index
    device_mgmt/index
    dts/index
-   env_vars.rst
-   pinctrl/index
-   pm/index
    emulator/index.rst
 
    modules.rst
@@ -27,7 +24,6 @@ User and Developer Guides
    platformio/index.rst
    portability/index.rst
    porting/index
-   smf/index.rst
    test/index
    tfm/index
    west/index

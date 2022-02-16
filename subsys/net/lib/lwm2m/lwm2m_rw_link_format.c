@@ -9,7 +9,6 @@
 
 #include "lwm2m_engine.h"
 #include "lwm2m_rw_link_format.h"
-#include "lwm2m_util.h"
 
 LOG_MODULE_REGISTER(net_lwm2m_link_format, CONFIG_LWM2M_LOG_LEVEL);
 
@@ -37,8 +36,20 @@ LOG_MODULE_REGISTER(net_lwm2m_link_format, CONFIG_LWM2M_LOG_LEVEL);
 #define REG_PREFACE		""
 #endif
 
-static int put_begin(struct lwm2m_output_context *out,
-		     struct lwm2m_obj_path *path)
+enum link_format_mode {
+	LINK_FORMAT_MODE_DISCOVERY,
+	LINK_FORMAT_MODE_BOOTSTRAP_DISCOVERY,
+	LINK_FORMAT_MODE_REGISTER,
+};
+
+struct link_format_out_formatter_data {
+	uint8_t request_level;
+	uint8_t mode;
+	bool is_first : 1;
+};
+
+static size_t put_begin(struct lwm2m_output_context *out,
+			struct lwm2m_obj_path *path)
 {
 	char init_string[MAX(sizeof(ENABLER_VERSION), sizeof(REG_PREFACE))] = "";
 	struct link_format_out_formatter_data *fd;
@@ -48,7 +59,7 @@ static int put_begin(struct lwm2m_output_context *out,
 
 	fd = engine_get_out_user_data(out);
 	if (fd == NULL) {
-		return -EINVAL;
+		return 0;
 	}
 
 	switch (fd->mode) {
@@ -73,7 +84,7 @@ static int put_begin(struct lwm2m_output_context *out,
 	ret = buf_append(CPKT_BUF_WRITE(out->out_cpkt), init_string,
 			 strlen(init_string));
 	if (ret < 0) {
-		return ret;
+		return 0;
 	}
 
 	fd->is_first = false;
@@ -147,7 +158,9 @@ static int put_corelink_attributes(struct lwm2m_output_context *out,
 				   uint16_t buflen)
 {
 	struct lwm2m_attr *attr = NULL;
-	int used, ret;
+	int used, base, ret;
+	uint8_t digit;
+	int32_t fraction;
 	int len = 0;
 
 	while ((attr = lwm2m_engine_get_next_attr(ref, attr)) != NULL) {
@@ -158,22 +171,25 @@ static int put_corelink_attributes(struct lwm2m_output_context *out,
 			continue;
 		}
 
-		if (attr->type <= LWM2M_ATTR_PMAX) {
-			used = snprintk(buf, buflen, ";%s=%d", name, attr->int_val);
-		} else {
-			uint8_t float_buf[32];
-
-			used = lwm2m_ftoa(&attr->float_val, float_buf,
-					  sizeof(float_buf), 4);
-			if (used < 0 || used >= sizeof(float_buf)) {
-				return -ENOMEM;
-			}
-
-			used = snprintk(buf, buflen, ";%s=%s", name, float_buf);
-		}
-
+		/* Assuming integer will have float_val.val2 set as 0. */
+		used = snprintk(buf, buflen, ";%s=%s%d%s",
+				name,
+				attr->float_val.val1 == 0 &&
+				attr->float_val.val2 < 0 ? "-" : "",
+				attr->float_val.val1,
+				attr->float_val.val2 != 0 ? "." : "");
 		if (used < 0 || used >= buflen) {
 			return -ENOMEM;
+		}
+
+		base = 100000;
+		fraction = attr->float_val.val2 < 0 ?
+			   -attr->float_val.val2 : attr->float_val.val2;
+		while (fraction && used < buflen && base > 0) {
+			digit = fraction / base;
+			buf[used++] = '0' + digit;
+			fraction -= digit * base;
+			base /= 10;
 		}
 
 		len += used;
@@ -436,11 +452,11 @@ static int put_res_corelink(struct lwm2m_output_context *out,
 	return len;
 }
 
-static int put_corelink(struct lwm2m_output_context *out,
-			const struct lwm2m_obj_path *path)
+static ssize_t put_corelink(struct lwm2m_output_context *out,
+			    const struct lwm2m_obj_path *path)
 {
 	struct link_format_out_formatter_data *fd;
-	int len = 0;
+	ssize_t len = 0;
 	int ret;
 
 	fd = engine_get_out_user_data(out);

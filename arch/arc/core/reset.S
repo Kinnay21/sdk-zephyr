@@ -31,6 +31,7 @@ GTEXT(__reset)
 GTEXT(__start)
 
 /**
+ *
  * @brief Reset vector
  *
  * Ran when the system comes out of reset. The processor is at supervisor level.
@@ -39,6 +40,8 @@ GTEXT(__start)
  *
  * When these steps are completed, jump to _PrepC(), which will finish setting
  * up the system for running C code.
+ *
+ * @return N/A
  */
 
 SECTION_SUBSEC_FUNC(TEXT,_reset_and__start,__reset)

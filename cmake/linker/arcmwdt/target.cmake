@@ -10,8 +10,6 @@ set_ifndef(LINKERFLAGPREFIX -Wl,)
 # NOTE: ${linker_script_gen} will be produced at build-time; not at configure-time
 macro(configure_linker_script linker_script_gen linker_pass_define)
   set(extra_dependencies ${ARGN})
-  set(template_script_defines ${linker_pass_define})
-  list(TRANSFORM template_script_defines PREPEND "-D")
 
   # Different generators deal with depfiles differently.
   if(CMAKE_GENERATOR STREQUAL "Unix Makefiles")
@@ -52,7 +50,7 @@ macro(configure_linker_script linker_script_gen linker_pass_define)
     -imacros ${AUTOCONF_H}
     ${current_includes}
     ${current_defines}
-    ${template_script_defines}
+    ${linker_pass_define}
     ${LINKER_SCRIPT}
     -E
     -o ${linker_script_gen}

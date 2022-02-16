@@ -30,6 +30,8 @@ static struct k_thread y_thread;
 
 /**
  * @brief Helper thread for measuring thread switch latency using yield
+ *
+ * @return N/A
  */
 void yielding_thread(void *arg1, void *arg2, void *arg3)
 {
@@ -41,6 +43,8 @@ void yielding_thread(void *arg1, void *arg2, void *arg3)
 
 /**
  * @brief Entry point for thread context switch using yield test
+ *
+ * @return N/A
  */
 void thread_switch_yield(void)
 {

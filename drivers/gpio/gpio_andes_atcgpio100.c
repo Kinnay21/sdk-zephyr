@@ -51,22 +51,26 @@
 #define DEBOUNCE_CONFIGURED     BIT(29)
 #define DF_DEBOUNCED_SETTING    (0x80000003)
 
-#define GPIO_BASE(dev) \
-	((const struct gpio_atcgpio100_config * const)(dev)->config)->base
+#define DEV_CFG(dev) \
+	((const struct gpio_atcgpio100_config * const)(dev)->config)
 
-#define GPIO_CFG(dev)  (GPIO_BASE(dev) + REG_CFG)
-#define GPIO_DIR(dev)  (GPIO_BASE(dev) + REG_DIR)
-#define GPIO_DIN(dev)  (GPIO_BASE(dev) + REG_DIN)
-#define GPIO_DOUT(dev) (GPIO_BASE(dev) + REG_DOUT)
-#define GPIO_DCLR(dev) (GPIO_BASE(dev) + REG_DCLR)
-#define GPIO_DSET(dev) (GPIO_BASE(dev) + REG_DSET)
-#define GPIO_PUEN(dev) (GPIO_BASE(dev) + REG_PUEN)
-#define GPIO_PTYP(dev) (GPIO_BASE(dev) + REG_PTYP)
-#define GPIO_INTE(dev) (GPIO_BASE(dev) + REG_INTE)
-#define GPIO_IMD(dev, idx) (GPIO_BASE(dev) + REG_IMD0 + (idx * 4))
-#define GPIO_ISTA(dev) (GPIO_BASE(dev) + REG_ISTA)
-#define GPIO_DEBE(dev) (GPIO_BASE(dev) + REG_DEBE)
-#define GPIO_DEBC(dev) (GPIO_BASE(dev) + REG_DEBC)
+#define DEV_DATA(dev) \
+	((struct gpio_atcgpio100_data *)(dev)->data)
+
+
+#define GPIO_CFG(dev)  (DEV_CFG(dev)->base + REG_CFG)
+#define GPIO_DIR(dev)  (DEV_CFG(dev)->base + REG_DIR)
+#define GPIO_DIN(dev)  (DEV_CFG(dev)->base + REG_DIN)
+#define GPIO_DOUT(dev) (DEV_CFG(dev)->base + REG_DOUT)
+#define GPIO_DCLR(dev) (DEV_CFG(dev)->base + REG_DCLR)
+#define GPIO_DSET(dev) (DEV_CFG(dev)->base + REG_DSET)
+#define GPIO_PUEN(dev) (DEV_CFG(dev)->base + REG_PUEN)
+#define GPIO_PTYP(dev) (DEV_CFG(dev)->base + REG_PTYP)
+#define GPIO_INTE(dev) (DEV_CFG(dev)->base + REG_INTE)
+#define GPIO_IMD(dev, idx) (DEV_CFG(dev)->base + REG_IMD0 + (idx * 4))
+#define GPIO_ISTA(dev) (DEV_CFG(dev)->base + REG_ISTA)
+#define GPIO_DEBE(dev) (DEV_CFG(dev)->base + REG_DEBE)
+#define GPIO_DEBC(dev) (DEV_CFG(dev)->base + REG_DEBC)
 
 #define INWORD(x)     sys_read32(x)
 #define OUTWORD(x, d) sys_write32(d, x)
@@ -100,7 +104,7 @@ static int gpio_atcgpio100_config(const struct device *port,
 				  gpio_pin_t pin,
 				  gpio_flags_t flags)
 {
-	struct gpio_atcgpio100_data * const data = port->data;
+	struct gpio_atcgpio100_data * const data = DEV_DATA(port);
 	uint32_t port_value, pin_mask, io_flags;
 	k_spinlock_key_t key;
 
@@ -173,7 +177,7 @@ static int gpio_atcgpio100_set_masked_raw(const struct device *port,
 					  gpio_port_pins_t mask,
 					  gpio_port_value_t value)
 {
-	struct gpio_atcgpio100_data * const data = port->data;
+	struct gpio_atcgpio100_data * const data = DEV_DATA(port);
 	uint32_t port_value;
 
 	k_spinlock_key_t key = k_spin_lock(&data->lock);
@@ -203,7 +207,7 @@ static int gpio_atcgpio100_clear_bits_raw(const struct device *port,
 static int gpio_atcgpio100_toggle_bits(const struct device *port,
 					gpio_port_pins_t pins)
 {
-	struct gpio_atcgpio100_data * const data = port->data;
+	struct gpio_atcgpio100_data * const data = DEV_DATA(port);
 	uint32_t port_value;
 
 	k_spinlock_key_t key = k_spin_lock(&data->lock);
@@ -222,7 +226,7 @@ static int gpio_atcgpio100_pin_interrupt_configure(
 					enum gpio_int_mode mode,
 					enum gpio_int_trig trig)
 {
-	struct gpio_atcgpio100_data * const data = port->data;
+	struct gpio_atcgpio100_data * const data = DEV_DATA(port);
 	uint32_t port_value, int_mode, imr_idx, ch_idx;
 	k_spinlock_key_t key;
 
@@ -281,14 +285,14 @@ static int gpio_atcgpio100_manage_callback(const struct device *port,
 					bool set)
 {
 
-	struct gpio_atcgpio100_data * const data = port->data;
+	struct gpio_atcgpio100_data * const data = DEV_DATA(port);
 
 	return gpio_manage_callback(&data->cb, callback, set);
 }
 
 static void gpio_atcgpio100_irq_handler(const struct device *port)
 {
-	struct gpio_atcgpio100_data * const data = port->data;
+	struct gpio_atcgpio100_data * const data = DEV_DATA(port);
 	uint32_t port_value;
 
 	port_value = INWORD(GPIO_ISTA(port));
@@ -311,7 +315,7 @@ static const struct gpio_driver_api gpio_atcgpio100_api = {
 
 static int gpio_atcgpio100_init(const struct device *port)
 {
-	const struct gpio_atcgpio100_config * const dev_cfg = port->config;
+	const struct gpio_atcgpio100_config * const dev_cfg = DEV_CFG(port);
 
 	/* Disable all interrupts */
 	OUTWORD(GPIO_INTE(port), BIT_MASK(0));
@@ -348,8 +352,8 @@ static int gpio_atcgpio100_init(const struct device *port)
 		NULL,							\
 		&gpio_atcgpio100_data_##n,				\
 		&gpio_atcgpio100_config_##n,				\
-		PRE_KERNEL_1,						\
-		CONFIG_GPIO_INIT_PRIORITY,				\
+		POST_KERNEL,						\
+		CONFIG_KERNEL_INIT_PRIORITY_DEVICE,			\
 		&gpio_atcgpio100_api);					\
 									\
 	static void gpio_atcgpio100_cfg_func_##n(void)			\

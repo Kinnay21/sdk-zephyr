@@ -25,9 +25,6 @@ ARCHS = {
     "arm64" : {
         "kconfig": "CONFIG_ARM64",
     },
-    "mips" : {
-        "kconfig": "CONFIG_MIPS",
-    },
     "sparc" : {
         "kconfig": "CONFIG_SPARC",
     },

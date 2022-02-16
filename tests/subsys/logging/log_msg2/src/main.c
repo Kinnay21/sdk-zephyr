@@ -10,8 +10,9 @@
  */
 
 #include <logging/log_msg2.h>
-#include <logging/log_internal.h>
+#include <logging/log_core.h>
 #include <logging/log_ctrl.h>
+#include <logging/log_instance.h>
 
 #include <tc_util.h>
 #include <stdbool.h>
@@ -19,7 +20,7 @@
 #include <ztest.h>
 #include <sys/cbprintf.h>
 
-#if defined(CONFIG_ARCH_POSIX)
+#if defined(__sparc__) || defined(CONFIG_ARCH_POSIX)
 /* On some platforms all strings are considered RW, that impacts size of the
  * package.
  */
@@ -308,7 +309,7 @@ void test_log_msg2_fp(void)
 	const void *source = (const void *)123;
 	int mode;
 	long long lli = 0x1122334455;
-	float f = 1.234f;
+	float f = 1.234;
 	double d = 11.3434;
 	char str[256];
 	int i = -100;
@@ -316,16 +317,16 @@ void test_log_msg2_fp(void)
 	test_init();
 
 	Z_LOG_MSG2_CREATE2(1, mode, 0, domain, source, level, NULL, 0,
-			TEST_MSG, i, lli, (double)f, &i, d, source);
+			TEST_MSG, i, lli, f, &i, d, source);
 	zassert_equal(mode, EXP_MODE(ZERO_COPY), NULL);
 
 	Z_LOG_MSG2_CREATE2(0, mode, 0, domain, source, level, NULL, 0,
-			TEST_MSG, i, lli, (double)f, &i, d, source);
+			TEST_MSG, i, lli, f, &i, d, source);
 	zassert_equal(mode, EXP_MODE(FROM_STACK), NULL);
 
 	z_log_msg2_runtime_create(domain, (void *)source, level, NULL, 0,
-				  TEST_MSG, i, lli, (double)f, &i, d, source);
-	snprintfcb(str, sizeof(str), TEST_MSG, i, lli, (double)f, &i, d, source);
+				  TEST_MSG, i, lli, f, &i, d, source);
+	snprintfcb(str, sizeof(str), TEST_MSG, i, lli, f, &i, d, source);
 
 	validate_base_message_set(source, domain, level,
 				   TEST_TIMESTAMP_INIT_VALUE,
@@ -568,6 +569,40 @@ void test_saturate(void)
 	zassert_equal(msg, NULL, "Expected no pending messages");
 }
 
+#define TRACE_ID1 (1)
+#define TRACE_ID2 (31)
+void test_log_msg2_put_trace(void)
+{
+	union log_msg2_generic *msg;
+
+	Z_TRACING_LOG_HDR_INIT(trace, TRACE_ID1);
+
+	test_init();
+	z_log_msg2_put_trace(trace);
+	msg = z_log_msg2_claim();
+	zassert_true(msg, "Unexpected null message");
+	zassert_equal(msg->generic.type, Z_LOG_MSG2_TRACE, "Unexpected type");
+	zassert_equal(msg->trace.hdr.evt_id, TRACE_ID1, "Unexpected ID");
+	z_log_msg2_free(msg);
+}
+
+#define SIZE_OF_TRACE_DATA (10)
+void test_log_msg2_put_trace_ptr(void)
+{
+	uint32_t trace_data = 0x1234;
+	union log_msg2_generic *msg;
+
+	Z_TRACING_LOG_HDR_INIT(trace, TRACE_ID2);
+
+	test_init();
+	z_log_msg2_put_trace_ptr(trace, (void *)&trace_data);
+	msg = z_log_msg2_claim();
+	zassert_true(msg, "Unexpected null message");
+	zassert_equal(msg->generic.type, Z_LOG_MSG2_TRACE, "Unexpected type");
+	zassert_equal(msg->trace.hdr.evt_id, TRACE_ID2, "Unexpected ID");
+	z_log_msg2_free(msg);
+}
+
 /*test case main entry*/
 void test_main(void)
 {
@@ -581,7 +616,9 @@ void test_main(void)
 		ztest_unit_test(test_mode_size_data_only),
 		ztest_unit_test(test_mode_size_plain_str_data),
 		ztest_unit_test(test_mode_size_str_with_2strings),
-		ztest_unit_test(test_saturate)
+		ztest_unit_test(test_saturate),
+		ztest_unit_test(test_log_msg2_put_trace),
+		ztest_unit_test(test_log_msg2_put_trace_ptr)
 		);
 	ztest_run_test_suite(test_log_msg2);
 }

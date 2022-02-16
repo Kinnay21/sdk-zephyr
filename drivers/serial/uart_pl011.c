@@ -142,9 +142,12 @@ struct pl011_data {
 		PL011_IMSC_RXIM | PL011_IMSC_TXIM | \
 		PL011_IMSC_RTIM)
 
+#define DEV_CFG(dev) \
+	((const struct uart_device_config * const)(dev)->config)
+#define DEV_DATA(dev) \
+	((struct pl011_data *)(dev)->data)
 #define PL011_REGS(dev) \
-	((volatile struct pl011_regs  *) \
-	 ((const struct uart_device_config * const)(dev)->config)->base)
+	((volatile struct pl011_regs  *)(DEV_CFG(dev))->base)
 
 static void pl011_enable(const struct device *dev)
 {
@@ -198,9 +201,7 @@ static int pl011_set_baudrate(const struct device *dev,
 
 static bool pl011_is_readable(const struct device *dev)
 {
-	struct pl011_data *data = dev->data;
-
-	if (!data->sbsa &&
+	if (!DEV_DATA(dev)->sbsa &&
 	    (!(PL011_REGS(dev)->cr & PL011_CR_UARTEN) ||
 	     !(PL011_REGS(dev)->cr & PL011_CR_RXE)))
 		return false;
@@ -276,9 +277,7 @@ static int pl011_irq_tx_complete(const struct device *dev)
 
 static int pl011_irq_tx_ready(const struct device *dev)
 {
-	struct pl011_data *data = dev->data;
-
-	if (!data->sbsa && !(PL011_REGS(dev)->cr & PL011_CR_TXE))
+	if (!DEV_DATA(dev)->sbsa && !(PL011_REGS(dev)->cr & PL011_CR_TXE))
 		return false;
 
 	return ((PL011_REGS(dev)->imsc & PL011_IMSC_TXIM) &&
@@ -299,9 +298,7 @@ static void pl011_irq_rx_disable(const struct device *dev)
 
 static int pl011_irq_rx_ready(const struct device *dev)
 {
-	struct pl011_data *data = dev->data;
-
-	if (!data->sbsa && !(PL011_REGS(dev)->cr & PL011_CR_RXE))
+	if (!DEV_DATA(dev)->sbsa && !(PL011_REGS(dev)->cr & PL011_CR_RXE))
 		return false;
 
 	return ((PL011_REGS(dev)->imsc & PL011_IMSC_RXIM) &&
@@ -333,10 +330,8 @@ static void pl011_irq_callback_set(const struct device *dev,
 					    uart_irq_callback_user_data_t cb,
 					    void *cb_data)
 {
-	struct pl011_data *data = dev->data;
-
-	data->irq_cb = cb;
-	data->irq_cb_data = cb_data;
+	DEV_DATA(dev)->irq_cb = cb;
+	DEV_DATA(dev)->irq_cb_data = cb_data;
 }
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
@@ -363,8 +358,6 @@ static const struct uart_driver_api pl011_driver_api = {
 
 static int pl011_init(const struct device *dev)
 {
-	const struct uart_device_config *config = dev->config;
-	struct pl011_data *data = dev->data;
 	int ret;
 	uint32_t lcrh;
 
@@ -373,14 +366,14 @@ static int pl011_init(const struct device *dev)
 	 * or does not require configuration at all (if UART is emulated by
 	 * virtualization software).
 	 */
-	if (!data->sbsa) {
+	if (!DEV_DATA(dev)->sbsa) {
 		/* disable the uart */
 		pl011_disable(dev);
 		pl011_disable_fifo(dev);
 
 		/* Set baud rate */
-		ret = pl011_set_baudrate(dev, config->sys_clk_freq,
-					 data->baud_rate);
+		ret = pl011_set_baudrate(dev, DEV_CFG(dev)->sys_clk_freq,
+					 DEV_DATA(dev)->baud_rate);
 		if (ret != 0) {
 			return ret;
 		}
@@ -398,7 +391,7 @@ static int pl011_init(const struct device *dev)
 	PL011_REGS(dev)->imsc = 0U;
 	PL011_REGS(dev)->icr = PL011_IMSC_MASK_ALL;
 
-	if (!data->sbsa) {
+	if (!DEV_DATA(dev)->sbsa) {
 		PL011_REGS(dev)->dmacr = 0U;
 		__ISB();
 		PL011_REGS(dev)->cr &= ~(BIT(14) | BIT(15) | BIT(1));
@@ -406,9 +399,9 @@ static int pl011_init(const struct device *dev)
 		__ISB();
 	}
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	config->irq_config_func(dev);
+	DEV_CFG(dev)->irq_config_func(dev);
 #endif
-	if (!data->sbsa)
+	if (!DEV_DATA(dev)->sbsa)
 		pl011_enable(dev);
 
 	return 0;
@@ -417,7 +410,7 @@ static int pl011_init(const struct device *dev)
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 void pl011_isr(const struct device *dev)
 {
-	struct pl011_data *data = dev->data;
+	struct pl011_data *data = DEV_DATA(dev);
 
 	/* Verify if the callback has been registered */
 	if (data->irq_cb) {

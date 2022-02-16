@@ -17,7 +17,7 @@
 # It exists to reduce boilerplate code that Zephyr expects to be in
 # application CMakeLists.txt code.
 
-# CMake version 3.20 is the real minimum supported version.
+# CMake version 3.13.1 is the real minimum supported version.
 #
 # Unfortunately CMake requires the toplevel CMakeLists.txt file to
 # define the required version, not even invoking it from an included
@@ -27,6 +27,16 @@
 # Under these restraints we use a second 'cmake_minimum_required'
 # invocation in every toplevel CMakeLists.txt.
 cmake_minimum_required(VERSION 3.20.0)
+
+# CMP0002: "Logical target names must be globally unique"
+cmake_policy(SET CMP0002 NEW)
+
+# Use the old CMake behaviour until we are updating the CMake 3.20 as minimum
+# required. This ensure that CMake >=3.20 will be consistent with older CMakes.
+# CMP0116: Ninja generators transform DEPFILE s from add_custom_command().
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL 3.20)
+  cmake_policy(SET CMP0116 OLD)
+endif()
 
 define_property(GLOBAL PROPERTY ZEPHYR_LIBS
     BRIEF_DOCS "Global list of all Zephyr CMake libs that should be linked in"
@@ -40,26 +50,18 @@ define_property(GLOBAL PROPERTY ZEPHYR_INTERFACE_LIBS
 zephyr_interface_library_named() appends libs to this list.")
 set_property(GLOBAL PROPERTY ZEPHYR_INTERFACE_LIBS "")
 
-define_property(GLOBAL PROPERTY GENERATED_APP_SOURCE_FILES
-  BRIEF_DOCS "Source files that are generated after Zephyr has been linked once."
-  FULL_DOCS "\
-Source files that are generated after Zephyr has been linked once.\
-May include dev_handles.c etc."
-  )
-set_property(GLOBAL PROPERTY GENERATED_APP_SOURCE_FILES "")
-
 define_property(GLOBAL PROPERTY GENERATED_KERNEL_OBJECT_FILES
-  BRIEF_DOCS "Object files that are generated after symbol addresses are fixed."
+  BRIEF_DOCS "Object files that are generated after Zephyr has been linked once."
   FULL_DOCS "\
-Object files that are generated after symbol addresses are fixed.\
+Object files that are generated after Zephyr has been linked once.\
 May include mmu tables, etc."
   )
 set_property(GLOBAL PROPERTY GENERATED_KERNEL_OBJECT_FILES "")
 
 define_property(GLOBAL PROPERTY GENERATED_KERNEL_SOURCE_FILES
-  BRIEF_DOCS "Source files that are generated after symbol addresses are fixed."
+  BRIEF_DOCS "Source files that are generated after Zephyr has been linked once."
   FULL_DOCS "\
-Source files that are generated after symbol addresses are fixed.\
+Source files that are generated after Zephyr has been linked once.\
 May include isr_tables.c etc."
   )
 set_property(GLOBAL PROPERTY GENERATED_KERNEL_SOURCE_FILES "")
@@ -139,6 +141,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${AUTOCONF_H})
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 include(${ZEPHYR_BASE}/cmake/extensions.cmake)
+include(${ZEPHYR_BASE}/cmake/git.cmake)
 include(${ZEPHYR_BASE}/cmake/version.cmake)  # depends on hex.cmake
 
 #
@@ -547,14 +550,6 @@ set(SOC_SERIES ${CONFIG_SOC_SERIES})
 set(SOC_TOOLCHAIN_NAME ${CONFIG_SOC_TOOLCHAIN_NAME})
 set(SOC_FAMILY ${CONFIG_SOC_FAMILY})
 
-# For the gen_app_partitions.py to work correctly, we must ensure that
-# all targets exports their compile commands to fetch object files.
-# We enable it unconditionally, as this is also useful for several IDEs
-set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE CACHE BOOL
-    "Export CMake compile commands. Used by gen_app_partitions.py script"
-    FORCE
-)
-
 if("${SOC_SERIES}" STREQUAL "")
   set(SOC_PATH ${SOC_NAME})
 else()
@@ -562,7 +557,7 @@ else()
 endif()
 
 # Use SOC to search for a 'CMakeLists.txt' file.
-# e.g. zephyr/soc/xtensa/intel_adsp/CMakeLists.txt.
+# e.g. zephyr/soc/xtense/intel_apl_adsp/CMakeLists.txt.
 foreach(root ${SOC_ROOT})
   # Check that the root looks reasonable.
   if(NOT IS_DIRECTORY "${root}/soc")
@@ -594,18 +589,11 @@ project(Zephyr-Kernel VERSION ${PROJECT_VERSION})
 # windows now.
 list(APPEND CMAKE_ASM_SOURCE_FILE_EXTENSIONS "S")
 enable_language(C CXX ASM)
-
 # The setup / configuration of the toolchain itself and the configuration of
 # supported compilation flags are now split, as this allows to use the toolchain
 # for generic purposes, for example DTS, and then test the toolchain for
 # supported flags at stage two.
 # Testing the toolchain flags requires the enable_language() to have been called in CMake.
-
-# Verify that the toolchain can compile a dummy file, if it is not we
-# won't be able to test for compatibility with certain C flags.
-zephyr_check_compiler_flag(C "" toolchain_is_ok)
-assert(toolchain_is_ok "The toolchain is unable to build a dummy C file. See CMakeError.log.")
-
 include(${ZEPHYR_BASE}/cmake/target_toolchain_flags.cmake)
 
 # 'project' sets PROJECT_BINARY_DIR to ${CMAKE_CURRENT_BINARY_DIR},
@@ -672,6 +660,10 @@ zephyr_library_named(app)
 set_property(TARGET app PROPERTY ARCHIVE_OUTPUT_DIRECTORY app)
 
 add_subdirectory(${ZEPHYR_BASE} ${__build_dir})
+
+if(ZEPHYR_NRF_MODULE_DIR)
+  include(${ZEPHYR_NRF_MODULE_DIR}/cmake/partition_manager.cmake)
+endif()
 
 # Link 'app' with the Zephyr interface libraries.
 #

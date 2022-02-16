@@ -99,6 +99,10 @@ LOG_MODULE_REGISTER(usb_device);
 #define MAX_NUM_REQ_HANDLERS        4U
 #define MAX_STD_REQ_MSG_SIZE        8U
 
+/* Linker-defined symbols bound the USB descriptor structs */
+extern struct usb_cfg_data __usb_data_start[];
+extern struct usb_cfg_data __usb_data_end[];
+
 K_MUTEX_DEFINE(usb_enable_lock);
 
 static struct usb_dev_priv {
@@ -232,6 +236,8 @@ static bool usb_handle_request(struct usb_setup_packet *setup,
 
 /*
  * @brief send next chunk of data (possibly 0 bytes) to host
+ *
+ * @return N/A
  */
 static void usb_data_to_host(void)
 {
@@ -272,6 +278,8 @@ static void usb_data_to_host(void)
  *
  * @param [in] ep        Endpoint address
  * @param [in] ep_status Endpoint status
+ *
+ * @return N/A
  */
 static void usb_handle_control_transfer(uint8_t ep,
 					enum usb_dc_ep_cb_status_code ep_status)
@@ -394,6 +402,8 @@ static void usb_handle_control_transfer(uint8_t ep,
  *
  * @param [in] type       Type of request, e.g. USB_REQTYPE_TYPE_STANDARD
  * @param [in] handler    Callback function pointer
+ *
+ * @return N/A
  */
 static void usb_register_request_handler(int32_t type,
 					 usb_request_handler handler)
@@ -944,17 +954,20 @@ static bool usb_handle_std_interface_req(struct usb_setup_packet *setup,
  */
 static bool is_ep_valid(uint8_t ep)
 {
+	size_t size = (__usb_data_end - __usb_data_start);
 	const struct usb_ep_cfg_data *ep_data;
+	const struct usb_cfg_data *cfg;
 
 	/* Check if its Endpoint 0 */
 	if (USB_EP_GET_IDX(ep) == 0) {
 		return true;
 	}
 
-	STRUCT_SECTION_FOREACH(usb_cfg_data, cfg_data) {
-		ep_data = cfg_data->endpoint;
+	for (size_t i = 0; i < size; i++) {
+		cfg = &__usb_data_start[i];
+		ep_data = cfg->endpoint;
 
-		for (uint8_t n = 0; n < cfg_data->num_endpoints; n++) {
+		for (uint8_t n = 0; n < cfg->num_endpoints; n++) {
 			if (ep_data[n].ep_addr == ep) {
 				return true;
 			}
@@ -1155,12 +1168,13 @@ static void usb_register_status_callback(usb_dc_status_callback cb)
 
 static int foreach_ep(int (* endpoint_callback)(const struct usb_ep_cfg_data *))
 {
-	struct usb_ep_cfg_data *ep_data;
+	size_t size = (__usb_data_end - __usb_data_start);
 
-	STRUCT_SECTION_FOREACH(usb_cfg_data, cfg_data) {
-		ep_data = cfg_data->endpoint;
+	for (size_t i = 0; i < size; i++) {
+		struct usb_cfg_data *cfg = &__usb_data_start[i];
+		struct usb_ep_cfg_data *ep_data = cfg->endpoint;
 
-		for (uint8_t n = 0; n < cfg_data->num_endpoints; n++) {
+		for (uint8_t n = 0; n < cfg->num_endpoints; n++) {
 			int ret;
 
 			ret = endpoint_callback(&ep_data[n]);
@@ -1180,23 +1194,27 @@ static int disable_interface_ep(const struct usb_ep_cfg_data *ep_data)
 
 static void forward_status_cb(enum usb_dc_status_code status, const uint8_t *param)
 {
+	size_t size = (__usb_data_end - __usb_data_start);
+
 	if (status == USB_DC_DISCONNECTED) {
 		usb_reset_alt_setting();
 	}
 
-	if (status == USB_DC_DISCONNECTED || status == USB_DC_SUSPEND || status == USB_DC_RESET) {
+	if (status == USB_DC_DISCONNECTED || status == USB_DC_SUSPEND) {
 		if (usb_dev.configured) {
 			usb_cancel_transfers();
-			if (status == USB_DC_DISCONNECTED || status == USB_DC_RESET) {
+			if (status == USB_DC_DISCONNECTED) {
 				foreach_ep(disable_interface_ep);
 				usb_dev.configured = false;
 			}
 		}
 	}
 
-	STRUCT_SECTION_FOREACH(usb_cfg_data, cfg_data) {
-		if (cfg_data->cb_usb_status) {
-			cfg_data->cb_usb_status(cfg_data, status, param);
+	for (size_t i = 0; i < size; i++) {
+		struct usb_cfg_data *cfg = &__usb_data_start[i];
+
+		if (cfg->cb_usb_status) {
+			cfg->cb_usb_status(cfg, status, param);
 		}
 	}
 
@@ -1383,15 +1401,16 @@ int usb_wakeup_request(void)
 static int class_handler(struct usb_setup_packet *pSetup,
 			 int32_t *len, uint8_t **data)
 {
+	size_t size = (__usb_data_end - __usb_data_start);
 	const struct usb_if_descriptor *if_descr;
 	struct usb_interface_cfg_data *iface;
 
 	LOG_DBG("bRequest 0x%02x, wIndex 0x%04x",
 		pSetup->bRequest, pSetup->wIndex);
 
-	STRUCT_SECTION_FOREACH(usb_cfg_data, cfg_data) {
-		iface = &cfg_data->interface;
-		if_descr = cfg_data->interface_descriptor;
+	for (size_t i = 0; i < size; i++) {
+		iface = &(__usb_data_start[i].interface);
+		if_descr = __usb_data_start[i].interface_descriptor;
 		/*
 		 * Wind forward until it is within the range
 		 * of the current descriptor.
@@ -1412,15 +1431,16 @@ static int class_handler(struct usb_setup_packet *pSetup,
 static int custom_handler(struct usb_setup_packet *pSetup,
 			  int32_t *len, uint8_t **data)
 {
+	size_t size = (__usb_data_end - __usb_data_start);
 	const struct usb_if_descriptor *if_descr;
 	struct usb_interface_cfg_data *iface;
 
 	LOG_DBG("bRequest 0x%02x, wIndex 0x%04x",
 		pSetup->bRequest, pSetup->wIndex);
 
-	STRUCT_SECTION_FOREACH(usb_cfg_data, cfg_data) {
-		iface = &cfg_data->interface;
-		if_descr = cfg_data->interface_descriptor;
+	for (size_t i = 0; i < size; i++) {
+		iface = &(__usb_data_start[i].interface);
+		if_descr = __usb_data_start[i].interface_descriptor;
 		/*
 		 * Wind forward until it is within the range
 		 * of the current descriptor.
@@ -1455,6 +1475,7 @@ static int custom_handler(struct usb_setup_packet *pSetup,
 static int vendor_handler(struct usb_setup_packet *pSetup,
 			  int32_t *len, uint8_t **data)
 {
+	size_t size = (__usb_data_end - __usb_data_start);
 	struct usb_interface_cfg_data *iface;
 
 	LOG_DBG("bRequest 0x%02x, wIndex 0x%04x",
@@ -1466,8 +1487,8 @@ static int vendor_handler(struct usb_setup_packet *pSetup,
 		}
 	}
 
-	STRUCT_SECTION_FOREACH(usb_cfg_data, cfg_data) {
-		iface = &cfg_data->interface;
+	for (size_t i = 0; i < size; i++) {
+		iface = &(__usb_data_start[i].interface);
 		if (iface->vendor_handler) {
 			if (!iface->vendor_handler(pSetup, len, data)) {
 				return 0;
@@ -1480,11 +1501,12 @@ static int vendor_handler(struct usb_setup_packet *pSetup,
 
 static int composite_setup_ep_cb(void)
 {
+	size_t size = (__usb_data_end - __usb_data_start);
 	struct usb_ep_cfg_data *ep_data;
 
-	STRUCT_SECTION_FOREACH(usb_cfg_data, cfg_data) {
-		ep_data = cfg_data->endpoint;
-		for (uint8_t n = 0; n < cfg_data->num_endpoints; n++) {
+	for (size_t i = 0; i < size; i++) {
+		ep_data = __usb_data_start[i].endpoint;
+		for (uint8_t n = 0; n < __usb_data_start[i].num_endpoints; n++) {
 			LOG_DBG("set cb, ep: 0x%x", ep_data[n].ep_addr);
 			if (usb_dc_ep_set_callback(ep_data[n].ep_addr,
 						   ep_data[n].ep_cb)) {
@@ -1529,8 +1551,7 @@ int usb_enable(usb_dc_status_callback status_cb)
 	k_mutex_lock(&usb_enable_lock, K_FOREVER);
 
 	if (usb_dev.enabled == true) {
-		LOG_WRN("USB device support already enabled");
-		ret = -EALREADY;
+		ret = 0;
 		goto out;
 	}
 
@@ -1617,7 +1638,7 @@ static int usb_device_init(const struct device *dev)
 	uint8_t *device_descriptor;
 
 	if (usb_dev.enabled == true) {
-		return -EALREADY;
+		return 0;
 	}
 
 	/* register device descriptor */
@@ -1629,11 +1650,7 @@ static int usb_device_init(const struct device *dev)
 
 	usb_set_config(device_descriptor);
 
-	if (IS_ENABLED(CONFIG_USB_DEVICE_INITIALIZE_AT_BOOT)) {
-		return usb_enable(NULL);
-	}
-
 	return 0;
 }
 
-SYS_INIT(usb_device_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
+SYS_INIT(usb_device_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);

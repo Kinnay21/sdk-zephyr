@@ -31,7 +31,6 @@ i2c0: i2c@8000 {
 	 * compatible = "nordic,nrf-twim" or
 	 *              "nordic,nrf-twis".
 	 */
-	compatible = "nordic,nrf-twim";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	reg = <0x8000 0x1000>;
@@ -48,7 +47,6 @@ spi0: spi@8000 {
 	 * compatible = "nordic,nrf-spim" or
 	 *              "nordic,nrf-spis".
 	 */
-	compatible = "nordic,nrf-spim";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	reg = <0x8000 0x1000>;
@@ -72,7 +70,6 @@ i2c1: i2c@9000 {
 	 * compatible = "nordic,nrf-twim" or
 	 *              "nordic,nrf-twis".
 	 */
-	compatible = "nordic,nrf-twim";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	reg = <0x9000 0x1000>;
@@ -89,7 +86,6 @@ spi1: spi@9000 {
 	 * compatible = "nordic,nrf-spim" or
 	 *              "nordic,nrf-spis".
 	 */
-	compatible = "nordic,nrf-spim";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	reg = <0x9000 0x1000>;
@@ -123,7 +119,6 @@ i2c2: i2c@b000 {
 	 * compatible = "nordic,nrf-twim" or
 	 *              "nordic,nrf-twis".
 	 */
-	compatible = "nordic,nrf-twim";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	reg = <0xb000 0x1000>;
@@ -140,7 +135,6 @@ spi2: spi@b000 {
 	 * compatible = "nordic,nrf-spim" or
 	 *              "nordic,nrf-spis".
 	 */
-	compatible = "nordic,nrf-spim";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	reg = <0xb000 0x1000>;
@@ -164,7 +158,6 @@ i2c3: i2c@c000 {
 	 * compatible = "nordic,nrf-twim" or
 	 *              "nordic,nrf-twis".
 	 */
-	compatible = "nordic,nrf-twim";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	reg = <0xc000 0x1000>;
@@ -181,7 +174,6 @@ spi3: spi@c000 {
 	 * compatible = "nordic,nrf-spim" or
 	 *              "nordic,nrf-spis".
 	 */
-	compatible = "nordic,nrf-spim";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	reg = <0xc000 0x1000>;

@@ -100,11 +100,9 @@ function(create_section)
 
   cmake_parse_arguments(SECTION "" "${single_args}" "${multi_args}" ${ARGN})
 
-  if(DEFINED SECTION_PASS)
-    if(NOT (${SECTION_PASS} IN_LIST PASS))
-      # This section is not active in this pass, ignore.
-      return()
-    endif()
+  if(DEFINED SECTION_PASS AND NOT "${PASS}" IN_LIST SECTION_PASS)
+    # This section is not active in this pass, ignore.
+    return()
   endif()
 
   set_property(GLOBAL PROPERTY SECTION_${SECTION_NAME} TRUE)
@@ -130,8 +128,8 @@ function(create_section)
   set_property(GLOBAL PROPERTY SYMBOL_TABLE___${name_clean}_end        ${name_clean})
 
   set(INDEX 100)
-  set(settings_single "ALIGN;ANY;FIRST;KEEP;OFFSET;PRIO;SECTION;SORT")
-  set(settings_multi  "FLAGS;INPUT;PASS;SYMBOLS")
+  set(settings_single "ALIGN;ANY;FIRST;KEEP;OFFSET;PASS;PRIO;SECTION;SORT")
+  set(settings_multi  "FLAGS;INPUT;SYMBOLS")
   foreach(settings ${SECTION_SETTINGS})
     if("${settings}" MATCHES "^{(.*)}$")
       cmake_parse_arguments(SETTINGS "" "${settings_single}" "${settings_multi}" ${CMAKE_MATCH_1})
@@ -140,11 +138,9 @@ function(create_section)
         continue()
       endif()
 
-      if(DEFINED SETTINGS_PASS)
-        if(NOT (${SETTINGS_PASS} IN_LIST PASS))
-          # This section setting is not active in this pass, ignore.
-          continue()
-        endif()
+      if(DEFINED SETTINGS_PASS AND NOT "${PASS}" IN_LIST SETTINGS_PASS)
+        # This section setting is not active in this pass, ignore.
+        continue()
       endif()
 
       if(DEFINED SETTINGS_PRIO)

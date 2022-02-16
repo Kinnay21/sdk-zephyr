@@ -2,5 +2,4 @@
 
 zephyr_sources(
   soc.c
-  soc_cache.c
   )

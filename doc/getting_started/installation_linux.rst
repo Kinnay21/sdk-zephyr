@@ -195,8 +195,8 @@ bundled in the :ref:`Zephyr SDK <zephyr_sdk>` by installing it.
 Python
 ======
 
-A :ref:`modern Python 3 version <install-required-tools>` is required. Check
-what version you have by using ``python3 --version``.
+A `modern Python 3 version <install-required-tools>` is required. Check what
+version you have by using ``python3 --version``.
 
 If you have an older version, you will need to install a more recent Python 3.
 You can build from source, or use a backport from your distribution's package
@@ -224,8 +224,6 @@ following target architectures:
 
 * :abbr:`ARC (Argonaut RISC Core)`
 
-* :abbr:`MIPS (Microprocessor without Interlocked Pipeline Stages)`
-
 * :abbr:`Nios II`
 
 * :abbr:`RISC-V`
@@ -242,19 +240,19 @@ Follow these steps to install the Zephyr SDK:
 
    .. code-block:: console
 
-      wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.13.2/zephyr-sdk-0.13.2-linux-x86_64-setup.run
+      wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.13.1/zephyr-sdk-0.13.1-linux-x86_64-setup.run
 
-   (You can change *0.13.2* to another version if needed; the `Zephyr
+   (You can change *0.13.1* to another version if needed; the `Zephyr
    Downloads`_ page contains all available SDK releases.)
 
 #. Run the installation binary, installing the SDK at
-   :file:`~/zephyr-sdk-0.13.2`:
+   :file:`~/zephyr-sdk-0.13.1`:
 
    .. code-block:: console
 
       cd <sdk download directory>
-      chmod +x zephyr-sdk-0.13.2-linux-x86_64-setup.run
-      ./zephyr-sdk-0.13.2-linux-x86_64-setup.run -- -d ~/zephyr-sdk-0.13.2
+      chmod +x zephyr-sdk-0.13.1-linux-x86_64-setup.run
+      ./zephyr-sdk-0.13.1-linux-x86_64-setup.run -- -d ~/zephyr-sdk-0.13.1
 
    You can pick another directory if you want. If this fails, make sure
    Zephyr's dependencies were installed as described in `Install Requirements
@@ -274,7 +272,7 @@ installed it.
    * ``/usr/zephyr-sdk[-x.y.z]``
    * ``/usr/local/zephyr-sdk[-x.y.z]``
 
-   where ``[-x.y.z]`` is optional text, and can be any text, for example ``-0.13.2``.
+   where ``[-x.y.z]`` is optional text, and can be any text, for example ``-0.13.1``.
 
    If you install the Zephyr SDK outside any of those locations, then it is
    required to register the Zephyr SDK in the CMake package registry during
@@ -285,7 +283,7 @@ installed it.
    containing multiple Zephyr SDKs, allowing for automatic toolchain selection,
    for example: ``ZEPHYR_SDK_INSTALL_DIR=/company/tools``
 
-   * ``/company/tools/zephyr-sdk-0.13.2``
+   * ``/company/tools/zephyr-sdk-0.13.1``
    * ``/company/tools/zephyr-sdk-a.b.c``
    * ``/company/tools/zephyr-sdk-x.y.z``
 
@@ -302,7 +300,7 @@ toolchains for all Zephyr target architectures, and does not require any extra
 flags when building applications or running tests. In addition to
 cross-compilers, the Zephyr SDK also provides prebuilt host tools. It is,
 however, possible to build without the SDK's toolchain by using another
-toolchain as as described in the :ref:`third_party_x_compilers` section.
+toolchain as as described in the main :ref:`getting_started` document.
 
 As already noted above, the SDK also includes prebuilt host tools.  To use the
 SDK's prebuilt host tools with a toolchain from another source, you must set the

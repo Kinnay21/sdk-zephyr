@@ -35,7 +35,7 @@ struct fs_littlefs {
 
 	/* These structures are filled automatically at mount. */
 	struct lfs lfs;
-	void *backend;
+	const struct flash_area *area;
 	struct k_mutex mutex;
 };
 

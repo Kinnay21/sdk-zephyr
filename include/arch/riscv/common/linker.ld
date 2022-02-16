@@ -60,7 +60,7 @@
 
 #ifdef CONFIG_RISCV_PMP
 	#define MPU_MIN_SIZE 4
-	#define MPU_MIN_SIZE_ALIGN . = ALIGN(MPU_MIN_SIZE);
+	#define MPU_MIN_SIZE_ALIGN . = ALIGN(MPU_MIN_SIZE );
 	#if defined(CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT)
 		#define MPU_ALIGN(region_size) \
 			. = ALIGN(MPU_MIN_SIZE); \
@@ -82,8 +82,8 @@ MEMORY
     RAM (rwx) : ORIGIN = RAM_BASE, LENGTH = RAM_SIZE
 
     /* Data & Instruction Tightly Coupled Memory */
-    LINKER_DT_REGION_FROM_NODE(DT_CHOSEN(zephyr_itcm), rw)
-    LINKER_DT_REGION_FROM_NODE(DT_CHOSEN(zephyr_dtcm), rw)
+    LINKER_DT_REGION_FROM_NODE(ITCM, rw, DT_CHOSEN(zephyr_itcm))
+    LINKER_DT_REGION_FROM_NODE(DTCM, rw, DT_CHOSEN(zephyr_dtcm))
 
     /* Used by and documented in include/linker/intlist.ld */
     IDT_LIST  (wx)      : ORIGIN = 0xFFFFF7FF, LENGTH = 2K
@@ -187,23 +187,7 @@ SECTIONS
 
 #include <linker/cplusplus-rom.ld>
 	__rodata_region_end = .;
-
-	/* For non-XIP system, __rom_region_end symbol should be set to
-	 * the end of common ROMABLE_REGIONs (text and rodata) instead of
-	 * the linker script end, so it wouldn't mistakely contain
-	 * RAMABLE_REGION in it.
-	 */
-#ifndef CONFIG_XIP
-#ifdef CONFIG_RISCV_PMP
-	SECTION_PROLOGUE(rom_mpu_padding,,)
-	{
-		MPU_ALIGN(__rodata_region_end - __rom_region_start);
-	} GROUP_LINK_IN(ROMABLE_REGION)
-#endif /* CONFIG_RISCV_PMP */
-
-	__rom_region_end = .;
-	__rom_region_size = __rom_region_end - __rom_region_start;
-#endif /* CONFIG_XIP */
+	MPU_ALIGN(__rodata_region_end - __rom_region_start);
     GROUP_END(ROMABLE_REGION)
 
     GROUP_START(RAMABLE_REGION)
@@ -228,9 +212,7 @@ SECTIONS
 		 */
 		 . = ALIGN(4);
 		 __bss_start = .;
-#if !defined(CONFIG_USERSPACE)
 		 _image_ram_start = .;
-#endif /* CONFIG_USERSPACE */
 		__kernel_ram_start = .;
 		 *(.sbss)
 		 *(".sbss.*")
@@ -245,6 +227,7 @@ SECTIONS
 	}  GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
 
 #include <linker/common-noinit.ld>
+#include <linker/cplusplus-ram.ld>
 
     SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,)
 	{
@@ -288,7 +271,6 @@ SECTIONS
 
 #include <linker/common-ram.ld>
 #include <linker/kobject-data.ld>
-#include <linker/cplusplus-ram.ld>
 
 /* Located in generated directory. This file is populated by the
  * zephyr_linker_sources() Cmake function.
@@ -322,7 +304,7 @@ GROUP_START(ITCM)
 	} GROUP_LINK_IN(ITCM AT> ROMABLE_REGION)
 
 	__itcm_size = __itcm_end - __itcm_start;
-	__itcm_load_start = LOADADDR(_ITCM_SECTION_NAME);
+	__itcm_rom_start = LOADADDR(_ITCM_SECTION_NAME);
 
 GROUP_END(ITCM)
 #endif
@@ -357,7 +339,7 @@ GROUP_START(DTCM)
 
 	__dtcm_end = .;
 
-	__dtcm_data_load_start = LOADADDR(_DTCM_DATA_SECTION_NAME);
+	__dtcm_data_rom_start = LOADADDR(_DTCM_DATA_SECTION_NAME);
 
 GROUP_END(DTCM)
 #endif
@@ -379,11 +361,6 @@ GROUP_END(DTCM)
 	KEEP(*(.gnu.attributes))
 	}
 
-/* Because ROMABLE_REGION != RAMABLE_REGION in XIP-system, it is valid
- * to set __rom_region_end symbol at the end of linker script and
- * doesn't mistakely contain the RAMABLE_REGION in it.
- */
-#ifdef CONFIG_XIP
 /* Must be last in romable region */
 SECTION_PROLOGUE(.last_section,(NOLOAD),)
 {
@@ -393,6 +370,5 @@ SECTION_PROLOGUE(.last_section,(NOLOAD),)
  * calculate this value here. */
 __rom_region_end = LOADADDR(.last_section);
 __rom_region_size = __rom_region_end - __rom_region_start;
-#endif
 
 }

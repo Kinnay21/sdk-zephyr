@@ -18,6 +18,5 @@ supported:
   - dma
   - usart
   - arduino_spi
-  - usb
 ram: 192
 flash: 512

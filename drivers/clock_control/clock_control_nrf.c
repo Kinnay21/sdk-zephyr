@@ -14,6 +14,11 @@
 #include <logging/log.h>
 #include <shell/shell.h>
 
+#if defined(CONFIG_SOC_NRF5340_CPUAPP) && \
+	!defined(CONFIG_TRUSTED_EXECUTION_NONSECURE)
+#include <hal/nrf_gpio.h>
+#endif
+
 LOG_MODULE_REGISTER(clock_control, CONFIG_CLOCK_CONTROL_LOG_LEVEL);
 
 #define DT_DRV_COMPAT nordic_nrf_clock
@@ -206,7 +211,8 @@ static void lfclk_start(void)
 
 static void lfclk_stop(void)
 {
-	if (IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_DRIVER_CALIBRATION)) {
+	if (IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC_CALIBRATION) &&
+	    !IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_FORCE_ALT)) {
 		z_nrf_clock_calibration_lfclk_stopped();
 	}
 
@@ -593,13 +599,15 @@ static void clock_event_handler(nrfx_clock_evt_type_t event)
 		break;
 #endif
 	case NRFX_CLOCK_EVT_LFCLK_STARTED:
-		if (IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_DRIVER_CALIBRATION)) {
+		if (IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC_CALIBRATION) &&
+		    !IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_FORCE_ALT)) {
 			z_nrf_clock_calibration_lfclk_started();
 		}
 		clkstarted_handle(dev, CLOCK_CONTROL_NRF_TYPE_LFCLK);
 		break;
 	case NRFX_CLOCK_EVT_CAL_DONE:
-		if (IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_DRIVER_CALIBRATION)) {
+		if (IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC_CALIBRATION) &&
+		    !IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_FORCE_ALT)) {
 			z_nrf_clock_calibration_done_handler();
 		} else {
 			/* Should not happen when calibration is disabled. */
@@ -652,7 +660,8 @@ static int clk_init(const struct device *dev)
 
 	hfclkaudio_init();
 
-	if (IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_DRIVER_CALIBRATION)) {
+	if (IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC_CALIBRATION) &&
+	    !IS_ENABLED(CONFIG_CLOCK_CONTROL_NRF_FORCE_ALT)) {
 		struct nrf_clock_control_data *data = dev->data;
 
 		z_nrf_clock_calibration_init(data->mgr);
@@ -717,7 +726,7 @@ static const struct nrf_clock_control_config config = {
 
 DEVICE_DT_DEFINE(DT_NODELABEL(clock), clk_init, NULL,
 		 &data, &config,
-		 PRE_KERNEL_1, CONFIG_CLOCK_CONTROL_INIT_PRIORITY,
+		 PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		 &clock_control_api);
 
 static int cmd_status(const struct shell *shell, size_t argc, char **argv)

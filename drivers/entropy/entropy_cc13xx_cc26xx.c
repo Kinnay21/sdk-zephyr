@@ -38,6 +38,12 @@ struct entropy_cc13xx_cc26xx_data {
 #endif
 };
 
+static inline struct entropy_cc13xx_cc26xx_data *
+get_dev_data(const struct device *dev)
+{
+	return dev->data;
+}
+
 static void start_trng(struct entropy_cc13xx_cc26xx_data *data)
 {
 	/* Initialization as described in TRM section 18.6.1.2 */
@@ -94,7 +100,7 @@ static int entropy_cc13xx_cc26xx_get_entropy(const struct device *dev,
 					     uint8_t *buf,
 					     uint16_t len)
 {
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
 	uint32_t cnt;
 
 #ifdef CONFIG_PM
@@ -127,8 +133,7 @@ static int entropy_cc13xx_cc26xx_get_entropy(const struct device *dev,
 
 static void entropy_cc13xx_cc26xx_isr(const void *arg)
 {
-	const struct device *dev = arg;
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(arg);
 	uint32_t src = 0;
 	uint32_t cnt;
 	uint32_t num[2];
@@ -170,7 +175,7 @@ static int entropy_cc13xx_cc26xx_get_entropy_isr(const struct device *dev,
 						 uint8_t *buf, uint16_t len,
 						 uint32_t flags)
 {
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
 	uint16_t cnt;
 	uint16_t read = len;
 	uint32_t src;
@@ -250,7 +255,7 @@ static int post_notify_fxn(unsigned int eventType, uintptr_t eventArg,
 
 		if (Power_getDependencyCount(res_id) != 0) {
 			/* Reconfigure and enable TRNG only if powered */
-			start_trng(dev->data);
+			start_trng(get_dev_data(dev));
 		}
 	}
 
@@ -259,10 +264,10 @@ static int post_notify_fxn(unsigned int eventType, uintptr_t eventArg,
 #endif
 
 #ifdef CONFIG_PM_DEVICE
-static int entropy_cc13xx_cc26xx_pm_action(const struct device *dev,
-					   enum pm_device_action action)
+static int entropy_cc13xx_cc26xx_pm_control(const struct device *dev,
+					    enum pm_device_action action)
 {
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
 
 	switch (action) {
 	case PM_DEVICE_ACTION_RESUME:
@@ -283,7 +288,7 @@ static int entropy_cc13xx_cc26xx_pm_action(const struct device *dev,
 
 static int entropy_cc13xx_cc26xx_init(const struct device *dev)
 {
-	struct entropy_cc13xx_cc26xx_data *data = dev->data;
+	struct entropy_cc13xx_cc26xx_data *data = get_dev_data(dev);
 
 	/* Initialize driver data */
 	ring_buf_init(&data->pool, sizeof(data->data), data->data);
@@ -344,11 +349,9 @@ static struct entropy_cc13xx_cc26xx_data entropy_cc13xx_cc26xx_data = {
 	.sync = Z_SEM_INITIALIZER(entropy_cc13xx_cc26xx_data.sync, 0, 1),
 };
 
-PM_DEVICE_DT_INST_DEFINE(0, entropy_cc13xx_cc26xx_pm_action);
-
 DEVICE_DT_INST_DEFINE(0,
 		entropy_cc13xx_cc26xx_init,
-		PM_DEVICE_DT_INST_GET(0),
+		entropy_cc13xx_cc26xx_pm_control,
 		&entropy_cc13xx_cc26xx_data, NULL,
-		PRE_KERNEL_1, CONFIG_ENTROPY_INIT_PRIORITY,
+		PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		&entropy_cc13xx_cc26xx_driver_api);

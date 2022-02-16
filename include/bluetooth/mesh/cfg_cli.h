@@ -56,10 +56,6 @@ int bt_mesh_cfg_node_reset(uint16_t net_idx, uint16_t addr, bool *status);
  *  return the largest page number it supports that is less than the requested
  *  page index. The actual page the device responds with is returned in @c rsp.
  *
- *  This method can be used asynchronously by setting @p rsp and @p comp
- *  as NULL. This way the method will not wait for response and will return
- *  immediately after sending the command.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param page    Composition data page, or 0xff to request the first available
@@ -74,10 +70,6 @@ int bt_mesh_cfg_comp_data_get(uint16_t net_idx, uint16_t addr, uint8_t page,
 
 /** @brief Get the target node's network beacon state.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param status  Status response parameter, returns one of
@@ -89,11 +81,6 @@ int bt_mesh_cfg_comp_data_get(uint16_t net_idx, uint16_t addr, uint8_t page,
 int bt_mesh_cfg_beacon_get(uint16_t net_idx, uint16_t addr, uint8_t *status);
 
 /** @brief             Get the target node's network key refresh phase state.
- *
- *  This method can be used asynchronously by setting @p status and @p phase
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
  *  @param key_net_idx Network key index.
@@ -106,11 +93,6 @@ int bt_mesh_cfg_krp_get(uint16_t net_idx, uint16_t addr, uint16_t key_net_idx,
 			uint8_t *status, uint8_t *phase);
 
 /** @brief             Set the target node's network key refresh phase parameters.
- *
- *  This method can be used asynchronously by setting @p status and @p phase
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
  *  @param key_net_idx Network key index.
@@ -126,10 +108,6 @@ int bt_mesh_cfg_krp_set(uint16_t net_idx, uint16_t addr, uint16_t key_net_idx,
 
 /** @brief Set the target node's network beacon state.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param val     New network beacon state, should be one of
@@ -144,10 +122,6 @@ int bt_mesh_cfg_beacon_set(uint16_t net_idx, uint16_t addr, uint8_t val, uint8_t
 
 /** @brief Get the target node's Time To Live value.
  *
- *  This method can be used asynchronously by setting @p ttl
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param ttl     TTL response buffer.
@@ -157,10 +131,6 @@ int bt_mesh_cfg_beacon_set(uint16_t net_idx, uint16_t addr, uint8_t val, uint8_t
 int bt_mesh_cfg_ttl_get(uint16_t net_idx, uint16_t addr, uint8_t *ttl);
 
 /** @brief Set the target node's Time To Live value.
- *
- *  This method can be used asynchronously by setting @p ttl
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
  *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
@@ -173,10 +143,6 @@ int bt_mesh_cfg_ttl_set(uint16_t net_idx, uint16_t addr, uint8_t val, uint8_t *t
 
 /** @brief Get the target node's Friend feature status.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param status  Status response parameter. Returns one of
@@ -188,10 +154,6 @@ int bt_mesh_cfg_ttl_set(uint16_t net_idx, uint16_t addr, uint8_t val, uint8_t *t
 int bt_mesh_cfg_friend_get(uint16_t net_idx, uint16_t addr, uint8_t *status);
 
 /** @brief Set the target node's Friend feature state.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
  *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
@@ -208,10 +170,6 @@ int bt_mesh_cfg_friend_set(uint16_t net_idx, uint16_t addr, uint8_t val, uint8_t
 
 /** @brief Get the target node's Proxy feature state.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param status  Status response parameter. Returns one of
@@ -224,10 +182,6 @@ int bt_mesh_cfg_friend_set(uint16_t net_idx, uint16_t addr, uint8_t val, uint8_t
 int bt_mesh_cfg_gatt_proxy_get(uint16_t net_idx, uint16_t addr, uint8_t *status);
 
 /** @brief Set the target node's Proxy feature state.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
  *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
@@ -246,10 +200,6 @@ int bt_mesh_cfg_gatt_proxy_set(uint16_t net_idx, uint16_t addr, uint8_t val,
 
 /** @brief Get the target node's network_transmit state.
  *
- *  This method can be used asynchronously by setting @p transmit
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx  Network index to encrypt with.
  *  @param addr     Target node address.
  *  @param transmit Network transmit response parameter. Returns the encoded
@@ -262,10 +212,6 @@ int bt_mesh_cfg_net_transmit_get(uint16_t net_idx, uint16_t addr,
 			  uint8_t *transmit);
 
 /** @brief Set the target node's network transmit parameters.
- *
- *  This method can be used asynchronously by setting @p transmit
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
  *
  *  @param net_idx    Network index to encrypt with.
  *  @param addr       Target node address.
@@ -280,10 +226,6 @@ int bt_mesh_cfg_net_transmit_set(uint16_t net_idx, uint16_t addr,
 		uint8_t val, uint8_t *transmit);
 
 /** @brief Get the target node's Relay feature state.
- *
- *  This method can be used asynchronously by setting @p status and @p transmit
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
  *
  *  @param net_idx  Network index to encrypt with.
  *  @param addr     Target node address.
@@ -300,10 +242,6 @@ int bt_mesh_cfg_relay_get(uint16_t net_idx, uint16_t addr, uint8_t *status,
 			  uint8_t *transmit);
 
 /** @brief Set the target node's Relay parameters.
- *
- *  This method can be used asynchronously by setting @p status
- *  and @p transmit as NULL. This way the method will not wait for
- *  response and will return immediately after sending the command.
  *
  *  @param net_idx      Network index to encrypt with.
  *  @param addr         Target node address.
@@ -327,10 +265,6 @@ int bt_mesh_cfg_relay_set(uint16_t net_idx, uint16_t addr, uint8_t new_relay,
 
 /** @brief Add a network key to the target node.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
  *  @param key_net_idx Network key index.
@@ -343,10 +277,6 @@ int bt_mesh_cfg_net_key_add(uint16_t net_idx, uint16_t addr, uint16_t key_net_id
 			    const uint8_t net_key[16], uint8_t *status);
 
 /** @brief Get a list of the target node's network key indexes.
- *
- *  This method can be used asynchronously by setting @p keys
- *  or @p key_cnt as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
  *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
@@ -363,10 +293,6 @@ int bt_mesh_cfg_net_key_get(uint16_t net_idx, uint16_t addr, uint16_t *keys,
 
 /** @brief Delete a network key from the target node.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
  *  @param key_net_idx Network key index.
@@ -378,10 +304,6 @@ int bt_mesh_cfg_net_key_del(uint16_t net_idx, uint16_t addr,
 			    uint16_t key_net_idx, uint8_t *status);
 
 /** @brief Add an application key to the target node.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
  *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
@@ -398,10 +320,6 @@ int bt_mesh_cfg_app_key_add(uint16_t net_idx, uint16_t addr, uint16_t key_net_id
 
 /** @brief Get a list of the target node's application key indexes for a
  *         specific network key.
- *
- *  This method can be used asynchronously by setting @p status and
- *  ( @p keys or @p key_cnt ) as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
  *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
@@ -423,10 +341,6 @@ int bt_mesh_cfg_app_key_get(uint16_t net_idx, uint16_t addr, uint16_t key_net_id
 
 /** @brief Delete an application key from the target node.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
  *  @param key_net_idx Network key index the application key belongs to.
@@ -439,10 +353,6 @@ int bt_mesh_cfg_app_key_del(uint16_t net_idx, uint16_t addr,
 		uint16_t key_net_idx, uint16_t key_app_idx, uint8_t *status);
 
 /** @brief Bind an application to a SIG model on the target node.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
  *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
@@ -458,10 +368,6 @@ int bt_mesh_cfg_mod_app_bind(uint16_t net_idx, uint16_t addr, uint16_t elem_addr
 
 /** @brief Unbind an application from a SIG model on the target node.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
  *  @param elem_addr   Element address the model is in.
@@ -476,10 +382,6 @@ int bt_mesh_cfg_mod_app_unbind(uint16_t net_idx, uint16_t addr,
 	uint16_t mod_id, uint8_t *status);
 
 /** @brief Bind an application to a vendor model on the target node.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
  *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
@@ -497,10 +399,6 @@ int bt_mesh_cfg_mod_app_bind_vnd(uint16_t net_idx, uint16_t addr, uint16_t elem_
 
 /** @brief Unbind an application from a vendor model on the target node.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response and will
- *  return immediately after sending the command.
- *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
  *  @param elem_addr   Element address the model is in.
@@ -517,10 +415,6 @@ int bt_mesh_cfg_mod_app_unbind_vnd(uint16_t net_idx, uint16_t addr,
 
 /** @brief Get a list of all applications bound to a SIG model on the target
  *         node.
- *
- *  This method can be used asynchronously by setting @p status
- *  and ( @p apps or @p app_cnt ) as NULL. This way the method will
- *  not wait for response and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -542,10 +436,6 @@ int bt_mesh_cfg_mod_app_get(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 
 /** @brief Get a list of all applications bound to a vendor model on the target
  *         node.
- *
- *  This method can be used asynchronously by setting @p status
- *  and ( @p apps or @p app_cnt ) as NULL. This way the method will
- *  not wait for response and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -635,10 +525,6 @@ struct bt_mesh_cfg_mod_pub {
 
 /** @brief Get publish parameters for a SIG model on the target node.
  *
- *  This method can be used asynchronously by setting @p status and
- *  @p pub as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -653,10 +539,6 @@ int bt_mesh_cfg_mod_pub_get(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 			    uint8_t *status);
 
 /** @brief Get publish parameters for a vendor model on the target node.
- *
- *  This method can be used asynchronously by setting @p status
- *  and @p pub as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -674,12 +556,6 @@ int bt_mesh_cfg_mod_pub_get_vnd(uint16_t net_idx, uint16_t addr, uint16_t elem_a
 
 /** @brief Set publish parameters for a SIG model on the target node.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
- *  @p pub shall not be NULL.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -694,12 +570,6 @@ int bt_mesh_cfg_mod_pub_set(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 			    uint8_t *status);
 
 /** @brief Set publish parameters for a vendor model on the target node.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
- *  @p pub shall not be NULL.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -717,10 +587,6 @@ int bt_mesh_cfg_mod_pub_set_vnd(uint16_t net_idx, uint16_t addr, uint16_t elem_a
 
 /** @brief Add a group address to a SIG model's subscription list.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -734,10 +600,6 @@ int bt_mesh_cfg_mod_sub_add(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 			    uint16_t sub_addr, uint16_t mod_id, uint8_t *status);
 
 /** @brief Add a group address to a vendor model's subscription list.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -755,10 +617,6 @@ int bt_mesh_cfg_mod_sub_add_vnd(uint16_t net_idx, uint16_t addr, uint16_t elem_a
 
 /** @brief Delete a group address in a SIG model's subscription list.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -772,10 +630,6 @@ int bt_mesh_cfg_mod_sub_del(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 			    uint16_t sub_addr, uint16_t mod_id, uint8_t *status);
 
 /** @brief Delete a group address in a vendor model's subscription list.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -797,10 +651,6 @@ int bt_mesh_cfg_mod_sub_del_vnd(uint16_t net_idx, uint16_t addr, uint16_t elem_a
  * Deletes all subscriptions in the model's subscription list, and adds a
  * single group address instead.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -819,10 +669,6 @@ int bt_mesh_cfg_mod_sub_overwrite(uint16_t net_idx, uint16_t addr, uint16_t elem
  * Deletes all subscriptions in the model's subscription list, and adds a
  * single group address instead.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -839,10 +685,6 @@ int bt_mesh_cfg_mod_sub_overwrite_vnd(uint16_t net_idx, uint16_t addr,
 
 /** @brief Add a virtual address to a SIG model's subscription list.
  *
- *  This method can be used asynchronously by setting @p status
- *  and @p virt_addr as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -858,10 +700,6 @@ int bt_mesh_cfg_mod_sub_va_add(uint16_t net_idx, uint16_t addr, uint16_t elem_ad
 			       uint16_t *virt_addr, uint8_t *status);
 
 /** @brief Add a virtual address to a vendor model's subscription list.
- *
- *  This method can be used asynchronously by setting @p status
- *  and @p virt_addr as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -880,10 +718,6 @@ int bt_mesh_cfg_mod_sub_va_add_vnd(uint16_t net_idx, uint16_t addr, uint16_t ele
 
 /** @brief Delete a virtual address in a SIG model's subscription list.
  *
- *  This method can be used asynchronously by setting @p status
- *  and @p virt_addr as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -899,10 +733,6 @@ int bt_mesh_cfg_mod_sub_va_del(uint16_t net_idx, uint16_t addr, uint16_t elem_ad
 			       uint16_t *virt_addr, uint8_t *status);
 
 /** @brief Delete a virtual address in a vendor model's subscription list.
- *
- *  This method can be used asynchronously by setting @p status
- *  and @p virt_addr as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -920,14 +750,10 @@ int bt_mesh_cfg_mod_sub_va_del_vnd(uint16_t net_idx, uint16_t addr, uint16_t ele
 				   uint16_t cid, uint16_t *virt_addr, uint8_t *status);
 
 /** @brief Overwrite all addresses in a SIG model's subscription list with a
- *  virtual address.
+ * virtual address.
  *
- *  Deletes all subscriptions in the model's subscription list, and adds a
- *  single group address instead.
- *
- *  This method can be used asynchronously by setting @p status
- *  and @p virt_addr as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
+ * Deletes all subscriptions in the model's subscription list, and adds a
+ * single group address instead.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -945,14 +771,10 @@ int bt_mesh_cfg_mod_sub_va_overwrite(uint16_t net_idx, uint16_t addr,
 				     uint8_t *status);
 
 /** @brief Overwrite all addresses in a vendor model's subscription list with a
- *  virtual address.
+ * virtual address.
  *
- *  Deletes all subscriptions in the model's subscription list, and adds a
- *  single group address instead.
- *
- *  This method can be used asynchronously by setting @p status
- *  and @p virt_addr as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
+ * Deletes all subscriptions in the model's subscription list, and adds a
+ * single group address instead.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -972,10 +794,6 @@ int bt_mesh_cfg_mod_sub_va_overwrite_vnd(uint16_t net_idx, uint16_t addr,
 
 /** @brief Get the subscription list of a SIG model on the target node.
  *
- *  This method can be used asynchronously by setting @p status and
- *  ( @p subs or @p sub_cnt ) as NULL. This way the method will
- *  not wait for response and will return immediately after sending the command.
- *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
  *  @param elem_addr Element address the model is in.
@@ -994,10 +812,6 @@ int bt_mesh_cfg_mod_sub_get(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 			    size_t *sub_cnt);
 
 /** @brief Get the subscription list of a vendor model on the target node.
- *
- *  This method can be used asynchronously by setting @p status and
- *  ( @p subs or @p sub_cnt ) as NULL. This way the method will
- *  not wait for response and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -1057,12 +871,6 @@ struct bt_mesh_cfg_hb_sub {
 
 /** @brief Set the target node's Heartbeat subscription parameters.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
- *  @p sub shall not be null.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param sub     New Heartbeat subscription parameters.
@@ -1074,10 +882,6 @@ int bt_mesh_cfg_hb_sub_set(uint16_t net_idx, uint16_t addr,
 			   struct bt_mesh_cfg_hb_sub *sub, uint8_t *status);
 
 /** @brief Get the target node's Heartbeta subscription parameters.
- *
- *  This method can be used asynchronously by setting @p status
- *  and @p sub as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
  *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
@@ -1128,12 +932,6 @@ struct bt_mesh_cfg_hb_pub {
  *
  *  @note The target node must already have received the specified network key.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
- *  @p pub shall not be NULL;
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param pub     New Heartbeat publication parameters.
@@ -1146,10 +944,6 @@ int bt_mesh_cfg_hb_pub_set(uint16_t net_idx, uint16_t addr,
 
 /** @brief Get the target node's Heartbeat publication parameters.
  *
- *  This method can be used asynchronously by setting @p status
- *  and @p pub as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param pub     Heartbeat publication parameter return buffer.
@@ -1161,10 +955,6 @@ int bt_mesh_cfg_hb_pub_get(uint16_t net_idx, uint16_t addr,
 			   struct bt_mesh_cfg_hb_pub *pub, uint8_t *status);
 
 /** @brief Delete all group addresses in a SIG model's subscription list.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -1179,10 +969,6 @@ int bt_mesh_cfg_mod_sub_del_all(uint16_t net_idx, uint16_t addr,
 				uint8_t *status);
 
 /** @brief Delete all group addresses in a vendor model's subscription list.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
  *
  *  @param net_idx   Network index to encrypt with.
  *  @param addr      Target node address.
@@ -1199,10 +985,6 @@ int bt_mesh_cfg_mod_sub_del_all_vnd(uint16_t net_idx, uint16_t addr,
 
 /** @brief Update a network key to the target node.
  *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
- *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
  *  @param key_net_idx Network key index.
@@ -1216,10 +998,6 @@ int bt_mesh_cfg_net_key_update(uint16_t net_idx, uint16_t addr,
 			       uint8_t *status);
 
 /** @brief Update an application key to the target node.
- *
- *  This method can be used asynchronously by setting @p status
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
  *
  *  @param net_idx     Network index to encrypt with.
  *  @param addr        Target node address.
@@ -1235,10 +1013,6 @@ int bt_mesh_cfg_app_key_update(uint16_t net_idx, uint16_t addr,
 			       const uint8_t app_key[16], uint8_t *status);
 
 /** @brief Set the Node Identity parameters.
- *
- *  This method can be used asynchronously by setting @p status
- *  and @p identity as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
  *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
@@ -1257,10 +1031,6 @@ int bt_mesh_cfg_node_identity_set(uint16_t net_idx, uint16_t addr,
 
 /** @brief Get the Node Identity parameters.
  *
- *  This method can be used asynchronously by setting @p status
- *  and @p identity as NULL. This way the method will not wait
- *  for response and will return immediately after sending the command.
- *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param key_net_idx Network key index the application key belongs to.
@@ -1276,10 +1046,6 @@ int bt_mesh_cfg_node_identity_get(uint16_t net_idx, uint16_t addr,
 				  uint8_t *identity);
 
 /** @brief Get the Low Power Node Polltimeout parameters.
- *
- *  This method can be used asynchronously by setting @p polltimeout
- *  as NULL. This way the method will not wait for response
- *  and will return immediately after sending the command.
  *
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.

@@ -144,8 +144,7 @@ static int send_unseg(struct bt_mesh_net_tx *tx, struct net_buf_simple *sdu,
 {
 	struct net_buf *buf;
 
-	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, BT_MESH_LOCAL_ADV,
-				 tx->xmit, BUF_TIMEOUT);
+	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, tx->xmit, BUF_TIMEOUT);
 	if (!buf) {
 		BT_ERR("Out of network buffers");
 		return -ENOBUFS;
@@ -413,8 +412,8 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 			continue;
 		}
 
-		seg = bt_mesh_adv_create(BT_MESH_ADV_DATA, BT_MESH_LOCAL_ADV,
-					 tx->xmit, BUF_TIMEOUT);
+		seg = bt_mesh_adv_create(BT_MESH_ADV_DATA, tx->xmit,
+					 BUF_TIMEOUT);
 		if (!seg) {
 			BT_DBG("Allocating segment failed");
 			goto end;
@@ -449,8 +448,7 @@ end:
 
 static void seg_retransmit(struct k_work *work)
 {
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct seg_tx *tx = CONTAINER_OF(dwork, struct seg_tx, retransmit);
+	struct seg_tx *tx = CONTAINER_OF(work, struct seg_tx, retransmit);
 
 	seg_tx_send_unacked(tx);
 }
@@ -1130,8 +1128,7 @@ static void seg_rx_reset(struct seg_rx *rx, bool full_reset)
 
 static void seg_ack(struct k_work *work)
 {
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct seg_rx *rx = CONTAINER_OF(dwork, struct seg_rx, ack);
+	struct seg_rx *rx = CONTAINER_OF(work, struct seg_rx, ack);
 	int32_t timeout;
 
 	if (!rx->in_use || rx->block == BLOCK_COMPLETE(rx->seg_n)) {

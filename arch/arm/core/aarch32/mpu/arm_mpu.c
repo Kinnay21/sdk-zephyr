@@ -146,12 +146,12 @@ void arm_core_mpu_enable(void)
 {
 	uint32_t val;
 
-	val = __get_SCTLR();
-	val |= SCTLR_MPU_ENABLE;
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 0" : "=r" (val) ::);
+	val |= SCTRL_MPU_ENABLE;
 	/* Make sure that all the registers are set before proceeding */
-	__DSB();
-	__set_SCTLR(val);
-	__ISB();
+	__asm__ volatile ("dsb");
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 0" :: "r" (val) :);
+	__asm__ volatile ("isb");
 }
 
 /**
@@ -161,12 +161,12 @@ void arm_core_mpu_disable(void)
 {
 	uint32_t val;
 
-	val = __get_SCTLR();
-	val &= ~SCTLR_MPU_ENABLE;
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 0" : "=r" (val) ::);
+	val &= ~SCTRL_MPU_ENABLE;
 	/* Force any outstanding transfers to complete before disabling MPU */
-	__DSB();
-	__set_SCTLR(val);
-	__ISB();
+	__asm__ volatile ("dsb");
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 0" :: "r" (val) :);
+	__asm__ volatile ("isb");
 }
 #else
 /**

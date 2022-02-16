@@ -97,10 +97,18 @@ static int console_out(int c)
 
 #if defined(CONFIG_STDOUT_CONSOLE)
 extern void __stdout_hook_install(int (*hook)(int));
+#else
+#define __stdout_hook_install(x) \
+	do {    /* nothing */	 \
+	} while ((0))
 #endif
 
 #if defined(CONFIG_PRINTK)
 extern void __printk_hook_install(int (*fn)(int));
+#else
+#define __printk_hook_install(x) \
+	do {    /* nothing */	 \
+	} while ((0))
 #endif
 
 #if defined(CONFIG_CONSOLE_HANDLER)
@@ -556,30 +564,29 @@ void uart_register_input(struct k_fifo *avail, struct k_fifo *lines,
 }
 
 #else
-void uart_register_input(struct k_fifo *avail, struct k_fifo *lines,
-			 uint8_t (*completion)(char *str, uint8_t len))
-{
-	ARG_UNUSED(avail);
-	ARG_UNUSED(lines);
-	ARG_UNUSED(completion);
-}
+#define console_input_init(x) \
+	do {    /* nothing */ \
+	} while ((0))
+#define uart_register_input(x) \
+	do {    /* nothing */  \
+	} while ((0))
 #endif
 
 /**
+ *
  * @brief Install printk/stdout hook for UART console output
+ *
+ * @return N/A
  */
 
 static void uart_console_hook_install(void)
 {
-#if defined(CONFIG_STDOUT_CONSOLE)
 	__stdout_hook_install(console_out);
-#endif
-#if defined(CONFIG_PRINTK)
 	__printk_hook_install(console_out);
-#endif
 }
 
 /**
+ *
  * @brief Initialize one UART as the console/debug port
  *
  * @return 0 if successful, otherwise failed.
@@ -607,4 +614,4 @@ SYS_INIT(uart_console_init,
 #else
 	 POST_KERNEL,
 #endif
-	 CONFIG_CONSOLE_INIT_PRIORITY);
+	 CONFIG_UART_CONSOLE_INIT_PRIORITY);

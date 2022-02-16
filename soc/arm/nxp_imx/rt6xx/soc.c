@@ -105,8 +105,7 @@ __imx_boot_ivt_section void (* const image_vector_table[])(void)  = {
 	z_arm_debug_monitor,	/* 0x30 */
 	(void (*)())image_vector_table,		/* 0x34, imageLoadAddress. */
 	z_arm_pendsv,						/* 0x38 */
-#if defined(CONFIG_SYS_CLOCK_EXISTS) && \
-	defined(CONFIG_CORTEX_M_SYSTICK_INSTALL_ISR)
+#if defined(CONFIG_SYS_CLOCK_EXISTS)
 	sys_clock_isr,						/* 0x3C */
 #else
 	z_arm_exc_spurious,
@@ -172,7 +171,11 @@ static void usb_device_clock_init(void)
 #endif
 
 /**
+ *
  * @brief Initialize the system clock
+ *
+ * @return N/A
+ *
  */
 static ALWAYS_INLINE void clock_init(void)
 {
@@ -231,10 +234,6 @@ static ALWAYS_INLINE void clock_init(void)
 	CLOCK_AttachClk(kSFRO_to_FLEXCOMM2);
 #endif
 
-#if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(pmic_i2c), nxp_lpc_i2c, okay)
-	CLOCK_AttachClk(kFFRO_to_FLEXCOMM15);
-#endif
-
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(flexcomm4), nxp_lpc_usart, okay)
 	CLOCK_AttachClk(kSFRO_to_FLEXCOMM4);
 #endif
@@ -285,11 +284,6 @@ static ALWAYS_INLINE void clock_init(void)
 
 void imxrt_usdhc_pinmux(uint16_t nusdhc, bool init,
 	uint32_t speed, uint32_t strength)
-{
-
-}
-
-void imxrt_usdhc_dat3_pull(bool pullup)
 {
 
 }

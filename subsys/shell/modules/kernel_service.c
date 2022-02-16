@@ -73,13 +73,12 @@ static void shell_tdata_dump(const struct k_thread *cthread, void *user_data)
 		      (thread == k_current_get()) ? "*" : " ",
 		      thread,
 		      tname ? tname : "NA");
-	/* Cannot use lld as it's less portable. */
-	shell_print(shell, "\toptions: 0x%x, priority: %d timeout: %" PRId64,
+	shell_print(shell, "\toptions: 0x%x, priority: %d timeout: %d",
 		      thread->base.user_options,
 		      thread->base.prio,
-		      (int64_t)thread->base.timeout.dticks);
+		      thread->base.timeout.dticks);
 	shell_print(shell, "\tstate: %s, entry: %p", k_thread_state_str(thread),
-		    thread->entry.pEntry);
+		    thread->entry);
 
 #ifdef CONFIG_THREAD_RUNTIME_STATS
 	ret = 0;
@@ -103,24 +102,17 @@ static void shell_tdata_dump(const struct k_thread *cthread, void *user_data)
 		 * so it won't increase RAM/ROM usage too much on 32-bit
 		 * targets.
 		 */
-		shell_print(shell, "\tTotal execution cycles: %u (%u %%)",
+#ifdef CONFIG_64BIT
+		shell_print(shell, "\tTotal execution cycles: %llu (%u %%)",
+			    rt_stats_thread.execution_cycles,
+			    pcnt);
+#else
+		shell_print(shell, "\tTotal execution cycles: %lu (%u %%)",
 			    (uint32_t)rt_stats_thread.execution_cycles,
 			    pcnt);
-#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
-		shell_print(shell, "\tCurrent execution cycles: %u",
-			    (uint32_t)rt_stats_thread.current_cycles);
-		shell_print(shell, "\tPeak execution cycles: %u",
-			    (uint32_t)rt_stats_thread.peak_cycles);
-		shell_print(shell, "\tAverage execution cycles: %u",
-			    (uint32_t)rt_stats_thread.average_cycles);
 #endif
 	} else {
 		shell_print(shell, "\tTotal execution cycles: ? (? %%)");
-#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
-		shell_print(shell, "\tCurrent execution cycles: ?");
-		shell_print(shell, "\tPeak execution cycles: ?");
-		shell_print(shell, "\tAverage execution cycles: ?");
-#endif
 	}
 #endif
 
@@ -175,7 +167,7 @@ static void shell_stack_dump(const struct k_thread *thread, void *user_data)
 	pcnt = ((size - unused) * 100U) / size;
 
 	shell_print((const struct shell *)user_data,
-		"%p %-10s (real size %zu):\tunused %zu\tusage %zu / %zu (%u %%)",
+		"%p %-10s (real size %u):\tunused %u\tusage %u / %u (%u %%)",
 		      thread,
 		      tname ? tname : "NA",
 		      size, unused, size - unused, size, pcnt);

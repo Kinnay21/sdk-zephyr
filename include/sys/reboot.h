@@ -31,7 +31,10 @@ extern "C" {
  * SYS_REBOOT_WARM).
  *
  * When successful, this routine does not return.
+ *
+ * @return N/A
  */
+
 extern FUNC_NORETURN void sys_reboot(int type);
 
 #ifdef __cplusplus

@@ -20,6 +20,10 @@ LOG_MODULE_REGISTER(adc_ite_it8xxx2);
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
 
+#define DEV_DATA(dev) ((struct adc_it8xxx2_data * const)(dev)->data)
+
+#define DEV_CFG(dev) ((struct adc_it8xxx2_cfg * const)(dev)->config)
+
 /* ADC internal reference voltage (Unit:mV) */
 #define IT8XXX2_ADC_VREF_VOL 3000
 /* ADC channels disabled */
@@ -70,7 +74,7 @@ struct adc_it8xxx2_cfg {
 static int adc_it8xxx2_channel_setup(const struct device *dev,
 				     const struct adc_channel_cfg *channel_cfg)
 {
-	const struct adc_it8xxx2_cfg *config = dev->config;
+	struct adc_it8xxx2_cfg *config = DEV_CFG(dev);
 
 	if (channel_cfg->acquisition_time != ADC_ACQ_TIME_DEFAULT) {
 		LOG_ERR("Selected ADC acquisition time is not valid");
@@ -153,7 +157,7 @@ static int check_buffer_size(const struct adc_sequence *sequence,
 static int adc_it8xxx2_start_read(const struct device *dev,
 				  const struct adc_sequence *sequence)
 {
-	struct adc_it8xxx2_data *data = dev->data;
+	struct adc_it8xxx2_data *data = DEV_DATA(dev);
 	uint32_t channel_mask = sequence->channels;
 
 	if (!channel_mask || channel_mask & ~BIT_MASK(CHIP_ADC_COUNT)) {
@@ -185,7 +189,7 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 static int adc_it8xxx2_read(const struct device *dev,
 			    const struct adc_sequence *sequence)
 {
-	struct adc_it8xxx2_data *data = dev->data;
+	struct adc_it8xxx2_data *data = DEV_DATA(dev);
 	uint32_t channel_mask = sequence->channels;
 	uint8_t channel_count = 0;
 	int err = 0;
@@ -225,7 +229,7 @@ static void adc_context_update_buffer_pointer(struct adc_context *ctx,
 /* Get result for each ADC selected channel. */
 static void adc_it8xxx2_get_sample(const struct device *dev)
 {
-	struct adc_it8xxx2_data *data = dev->data;
+	struct adc_it8xxx2_data *data = DEV_DATA(dev);
 	struct adc_it8xxx2_regs *const adc_regs = ADC_IT8XXX2_REG_BASE;
 	bool valid = false;
 
@@ -247,7 +251,7 @@ static void adc_it8xxx2_get_sample(const struct device *dev)
 static void adc_it8xxx2_isr(const void *arg)
 {
 	struct device *dev = (struct device *)arg;
-	struct adc_it8xxx2_data *data = dev->data;
+	struct adc_it8xxx2_data *data = DEV_DATA(dev);
 
 	LOG_DBG("ADC ISR triggered.");
 
@@ -284,7 +288,7 @@ static void adc_accuracy_initialization(void)
 
 static int adc_it8xxx2_init(const struct device *dev)
 {
-	struct adc_it8xxx2_data *data = dev->data;
+	struct adc_it8xxx2_data *data = DEV_DATA(dev);
 	struct adc_it8xxx2_regs *const adc_regs = ADC_IT8XXX2_REG_BASE;
 
 	/* ADC analog accuracy initialization */
@@ -331,5 +335,5 @@ DEVICE_DT_INST_DEFINE(0, adc_it8xxx2_init,
 		      NULL,
 		      &adc_it8xxx2_data_0,
 		      &adc_it8xxx2_cfg_0, PRE_KERNEL_1,
-		      CONFIG_ADC_INIT_PRIORITY,
+		      CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		      &api_it8xxx2_driver_api);

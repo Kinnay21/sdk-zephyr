@@ -30,9 +30,6 @@ config HAS_HW_NRF_CLOCK
 config HAS_HW_NRF_COMP
 	bool
 
-config HAS_HW_NRF_DCNF
-	bool
-
 config HAS_HW_NRF_DPPIC
 	bool
 
@@ -81,9 +78,6 @@ config HAS_HW_NRF_LPCOMP
 config HAS_HW_NRF_MPU
 	bool
 
-config HAS_HW_NRF_MUTEX
-	bool
-
 config HAS_HW_NRF_MWU
 	bool
 
@@ -92,9 +86,6 @@ config HAS_HW_NRF_NFCT
 
 # NVMC supports partial erase
 config HAS_HW_NRF_NVMC_PE
-	bool
-
-config HAS_HW_NRF_OSCILLATORS
 	bool
 
 config HAS_HW_NRF_PDM
@@ -140,12 +131,6 @@ config HAS_HW_NRF_RADIO_BLE_CODED
 	bool
 
 config HAS_HW_NRF_RADIO_IEEE802154
-	bool
-
-config HAS_HW_NRF_REGULATORS
-	bool
-
-config HAS_HW_NRF_RESET
 	bool
 
 config HAS_HW_NRF_RNG
@@ -287,9 +272,6 @@ config HAS_HW_NRF_USBD
 	bool
 
 config HAS_HW_NRF_USBREG
-	bool
-
-config HAS_HW_NRF_VMC
 	bool
 
 config HAS_HW_NRF_WDT

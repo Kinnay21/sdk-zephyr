@@ -11,9 +11,15 @@
 
 #define DT_DRV_COMPAT nuvoton_numicro_uart
 
+/* Device data structure */
+#define DEV_CFG(dev)						\
+	((const struct uart_numicro_config * const)(dev)->config)
+
+#define DRV_DATA(dev)						\
+	((struct uart_numicro_data * const)(dev)->data)
+
 #define UART_STRUCT(dev)					\
-	((UART_T *)						\
-	 ((const struct uart_numicro_config * const)(dev)->config)->devcfg.base)
+	((UART_T *)(DEV_CFG(dev))->devcfg.base)
 
 struct uart_numicro_config {
 	struct uart_device_config devcfg;
@@ -99,7 +105,7 @@ static inline uint32_t uart_numicro_convert_parity(enum uart_config_parity parit
 static int uart_numicro_configure(const struct device *dev,
 				  const struct uart_config *cfg)
 {
-	struct uart_numicro_data *ddata = dev->data;
+	struct uart_numicro_data *ddata = DRV_DATA(dev);
 	int32_t databits, stopbits;
 	uint32_t parity;
 
@@ -134,7 +140,7 @@ static int uart_numicro_configure(const struct device *dev,
 static int uart_numicro_config_get(const struct device *dev,
 				   struct uart_config *cfg)
 {
-	struct uart_numicro_data *ddata = dev->data;
+	struct uart_numicro_data *ddata = DRV_DATA(dev);
 
 	memcpy(cfg, &ddata->ucfg, sizeof(*cfg));
 
@@ -144,8 +150,8 @@ static int uart_numicro_config_get(const struct device *dev,
 
 static int uart_numicro_init(const struct device *dev)
 {
-	const struct uart_numicro_config *config = dev->config;
-	struct uart_numicro_data *ddata = dev->data;
+	const struct uart_numicro_config *config = DEV_CFG(dev);
+	struct uart_numicro_data *ddata = DRV_DATA(dev);
 
 	SYS_ResetModule(config->id_rst);
 

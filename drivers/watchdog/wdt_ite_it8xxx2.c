@@ -22,7 +22,7 @@ static int wdt_warning_fired;
 /* device config */
 struct wdt_it8xxx2_config {
 	/* wdt register base address */
-	struct wdt_it8xxx2_regs *base;
+	uintptr_t base;
 };
 
 /* driver data */
@@ -35,23 +35,24 @@ struct wdt_it8xxx2_data {
 	uint32_t timeout;
 };
 
+/* driver convenience defines */
+#define DRV_CONFIG(dev) ((const struct wdt_it8xxx2_config *)(dev)->config)
+#define DRV_DATA(dev) ((struct wdt_it8xxx2_data *)(dev)->data)
+#define DRV_REG(dev) (struct wdt_it8xxx2_regs *)(DRV_CONFIG(dev)->base)
+
 static int wdt_it8xxx2_install_timeout(const struct device *dev,
 					  const struct wdt_timeout_cfg *config)
 {
-	const struct wdt_it8xxx2_config *const wdt_config = dev->config;
-	struct wdt_it8xxx2_data *data = dev->data;
-	struct wdt_it8xxx2_regs *const inst = wdt_config->base;
+	struct wdt_it8xxx2_data *data = DRV_DATA(dev);
+	struct wdt_it8xxx2_regs *const inst = DRV_REG(dev);
 
 	/* if watchdog is already running */
 	if ((inst->ETWCFG) & IT8XXX2_WDT_LEWDCNTL) {
 		return -EBUSY;
 	}
 
-	/*
-	 * Not support lower limit window timeouts (min value must be equal to
-	 * 0). Upper limit window timeouts can't be 0 when we install timeout.
-	 */
-	if ((config->window.min != 0) || (config->window.max == 0)) {
+	/* no window watchdog support */
+	if (config->window.min != 0) {
 		data->timeout_installed = false;
 		return -EINVAL;
 	}
@@ -70,9 +71,8 @@ static int wdt_it8xxx2_install_timeout(const struct device *dev,
 
 static int wdt_it8xxx2_setup(const struct device *dev, uint8_t options)
 {
-	const struct wdt_it8xxx2_config *const wdt_config = dev->config;
-	struct wdt_it8xxx2_data *data = dev->data;
-	struct wdt_it8xxx2_regs *const inst = wdt_config->base;
+	struct wdt_it8xxx2_data *data = DRV_DATA(dev);
+	struct wdt_it8xxx2_regs *const inst = DRV_REG(dev);
 	uint16_t cnt0 = WARNING_TIMER_PERIOD_MS_TO_1024HZ_COUNT(data->timeout);
 	uint16_t cnt1 = WARNING_TIMER_PERIOD_MS_TO_1024HZ_COUNT((data->timeout
 			+ CONFIG_WDT_ITE_WARNING_LEADING_TIME_MS));
@@ -95,6 +95,11 @@ static int wdt_it8xxx2_setup(const struct device *dev, uint8_t options)
 		return -ENOTSUP;
 	}
 
+	if ((options & WDT_OPT_PAUSE_HALTED_BY_DBG) != 0) {
+		LOG_ERR("WDT_OPT_PAUSE_HALTED_BY_DBG is not supported");
+		return -ENOTSUP;
+	}
+
 	/* pre-warning timer1 is 16-bit counter down timer */
 	inst->ET1CNTLHR = (cnt0 >> 8) & 0xff;
 	inst->ET1CNTLLR = cnt0 & 0xff;
@@ -104,9 +109,6 @@ static int wdt_it8xxx2_setup(const struct device *dev, uint8_t options)
 
 	/* enable pre-warning timer1 interrupt */
 	irq_enable(DT_INST_IRQN(0));
-
-	/* don't stop watchdog timer counting */
-	inst->ETWCTRL &= ~IT8XXX2_WDT_EWDSCEN;
 
 	/* set watchdog timer count */
 	inst->EWDCNTHR = (cnt1 >> 8) & 0xff;
@@ -118,13 +120,15 @@ static int wdt_it8xxx2_setup(const struct device *dev, uint8_t options)
 	/*
 	 * bit5 = 1: enable key match function to touch watchdog
 	 * bit4 = 1: select watchdog clock source from prescaler
-	 * bit3 = 1: lock watchdog count register (also mark as watchdog running)
+	 * bit3 = 1: lock watchdog count register
 	 * bit1 = 1: lock timer1 prescaler register
+	 * bit0 = 1: lock watchdog and timer1 config register
 	 */
 	inst->ETWCFG = (IT8XXX2_WDT_EWDKEYEN |
 			IT8XXX2_WDT_EWDSRC |
 			IT8XXX2_WDT_LEWDCNTL |
-			IT8XXX2_WDT_LET1PS);
+			IT8XXX2_WDT_LET1PS |
+			IT8XXX2_WDT_LETWCFG);
 
 	LOG_DBG("WDT Setup and enabled");
 
@@ -140,9 +144,8 @@ static int wdt_it8xxx2_setup(const struct device *dev, uint8_t options)
  */
 static int wdt_it8xxx2_feed(const struct device *dev, int channel_id)
 {
-	const struct wdt_it8xxx2_config *const wdt_config = dev->config;
-	struct wdt_it8xxx2_data *data = dev->data;
-	struct wdt_it8xxx2_regs *const inst = wdt_config->base;
+	struct wdt_it8xxx2_data *data = DRV_DATA(dev);
+	struct wdt_it8xxx2_regs *const inst = DRV_REG(dev);
 	uint16_t cnt0 = WARNING_TIMER_PERIOD_MS_TO_1024HZ_COUNT(data->timeout);
 
 	ARG_UNUSED(channel_id);
@@ -175,15 +178,11 @@ static int wdt_it8xxx2_feed(const struct device *dev, int channel_id)
 
 static int wdt_it8xxx2_disable(const struct device *dev)
 {
-	const struct wdt_it8xxx2_config *const wdt_config = dev->config;
-	struct wdt_it8xxx2_data *data = dev->data;
-	struct wdt_it8xxx2_regs *const inst = wdt_config->base;
+	struct wdt_it8xxx2_data *data = DRV_DATA(dev);
+	struct wdt_it8xxx2_regs *const inst = DRV_REG(dev);
 
 	/* stop watchdog timer counting */
 	inst->ETWCTRL |= IT8XXX2_WDT_EWDSCEN;
-
-	/* unlock watchdog count register (also mark as watchdog not running) */
-	inst->ETWCFG &= ~IT8XXX2_WDT_LEWDCNTL;
 
 	/* disable pre-warning timer1 interrupt */
 	irq_disable(DT_INST_IRQN(0));
@@ -198,9 +197,8 @@ static int wdt_it8xxx2_disable(const struct device *dev)
 
 static void wdt_it8xxx2_isr(const struct device *dev)
 {
-	const struct wdt_it8xxx2_config *const wdt_config = dev->config;
-	struct wdt_it8xxx2_data *data = dev->data;
-	struct wdt_it8xxx2_regs *const inst = wdt_config->base;
+	struct wdt_it8xxx2_data *data = DRV_DATA(dev);
+	struct wdt_it8xxx2_regs *const inst = DRV_REG(dev);
 
 	/* clear pre-warning timer1 interrupt status */
 	ite_intc_isr_clear(DT_INST_IRQN(0));
@@ -213,13 +211,12 @@ static void wdt_it8xxx2_isr(const struct device *dev)
 		data->callback(dev, 0);
 	}
 
-#ifdef CONFIG_WDT_ITE_REDUCE_WARNING_LEADING_TIME
 	/*
 	 * Once warning timer triggered: if watchdog timer isn't reloaded,
 	 * then we will reduce interval of warning timer to 30ms to print
 	 * more warning messages before watchdog reset.
 	 */
-	if (!wdt_warning_fired) {
+	if (!wdt_warning_fired++) {
 		uint16_t cnt0 = WARNING_TIMER_PERIOD_MS_TO_1024HZ_COUNT(30);
 
 		/* pre-warning timer1 is 16-bit counter down timer */
@@ -229,8 +226,6 @@ static void wdt_it8xxx2_isr(const struct device *dev)
 		/* clear pre-warning timer1 interrupt status */
 		ite_intc_isr_clear(DT_INST_IRQN(0));
 	}
-#endif
-	wdt_warning_fired++;
 
 	LOG_DBG("WDT ISR");
 }
@@ -244,8 +239,7 @@ static const struct wdt_driver_api wdt_it8xxx2_api = {
 
 static int wdt_it8xxx2_init(const struct device *dev)
 {
-	const struct wdt_it8xxx2_config *const wdt_config = dev->config;
-	struct wdt_it8xxx2_regs *const inst = wdt_config->base;
+	struct wdt_it8xxx2_regs *const inst = DRV_REG(dev);
 
 	if (IS_ENABLED(CONFIG_WDT_DISABLE_AT_BOOT)) {
 		wdt_it8xxx2_disable(dev);
@@ -261,10 +255,7 @@ static int wdt_it8xxx2_init(const struct device *dev)
 	inst->ETWCFG = (IT8XXX2_WDT_EWDKEYEN |
 			IT8XXX2_WDT_EWDSRC);
 
-	/*
-	 * select the mode that watchdog can be stopped, this is needed for
-	 * wdt_it8xxx2_disable() api and WDT_OPT_PAUSE_HALTED_BY_DBG flag
-	 */
+	/* watchdog can be stopped */
 	inst->ETWCTRL |= IT8XXX2_WDT_EWDSCMS;
 
 	IRQ_CONNECT(DT_INST_IRQN(0), 0, wdt_it8xxx2_isr,
@@ -273,7 +264,7 @@ static int wdt_it8xxx2_init(const struct device *dev)
 }
 
 static const struct wdt_it8xxx2_config wdt_it8xxx2_cfg_0 = {
-	.base = (struct wdt_it8xxx2_regs *)DT_INST_REG_ADDR(0),
+	.base = DT_INST_REG_ADDR(0),
 };
 
 static struct wdt_it8xxx2_data wdt_it8xxx2_dev_data;

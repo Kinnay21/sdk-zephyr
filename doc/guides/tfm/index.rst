@@ -10,4 +10,3 @@ Trusted Firmware-M
    requirements.rst
    build.rst
    integration.rst
-   testsuites.rst

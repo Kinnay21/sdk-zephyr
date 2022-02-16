@@ -88,8 +88,6 @@ Zephyr includes the following emulators:
 * eSPI emulator driver, which does the same for eSPI. The emulator is being
   developed to support more functionalities.
 
-* CAN loopback driver
-
 A GPIO emulator is planned but is not yet complete.
 
 Samples

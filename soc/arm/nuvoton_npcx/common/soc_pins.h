@@ -7,10 +7,6 @@
 #ifndef _NUVOTON_NPCX_SOC_PINS_H_
 #define _NUVOTON_NPCX_SOC_PINS_H_
 
-#include <stdint.h>
-
-#include "reg/reg_def.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

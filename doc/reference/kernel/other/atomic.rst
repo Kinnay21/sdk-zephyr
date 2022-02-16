@@ -3,9 +3,8 @@
 Atomic Services
 ###############
 
-An :dfn:`atomic variable` is one that can be read and modified
-by threads and ISRs in an uninterruptible manner. It 32-bit on
-32-bit machines and 64-bit on 64-bit machines.
+An :dfn:`atomic variable` is a 32-bit variable that can be read and modified
+by threads and ISRs in an uninterruptible manner.
 
 .. contents::
     :local:

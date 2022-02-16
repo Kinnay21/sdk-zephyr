@@ -60,20 +60,15 @@ extern "C" {
 	static __in_section(usb, descriptor_##p, 3) __used __aligned(1)
 #define USBD_STRING_DESCR_DEFINE(p) \
 	static __in_section(usb, descriptor_##p, 4) __used __aligned(1)
-#define USBD_STRING_DESCR_USER_DEFINE(p) \
-	static __in_section(usb, descriptor_##p, 5) __used __aligned(1)
 #define USBD_TERM_DESCR_DEFINE(p) \
-	static __in_section(usb, descriptor_##p, 6) __used __aligned(1)
+	static __in_section(usb, descriptor_##p, 5) __used __aligned(1)
 
 /*
  * This macro should be used to place the struct usb_cfg_data
  * inside usb data section in the RAM.
  */
-#define USBD_DEFINE_CFG_DATA(name) \
-	static STRUCT_SECTION_ITERABLE(usb_cfg_data, name)
-
-#define USBD_CFG_DATA_DEFINE(p, name) __DEPRECATED_MACRO \
-	static __in_section(_usb_cfg_data, static, p##_name) __used __aligned(4)
+#define USBD_CFG_DATA_DEFINE(p, name) \
+	static __in_section(usb, data_##p, name) __used
 
 /*************************************************************************
  *  USB configuration
@@ -406,6 +401,8 @@ int usb_transfer_sync(uint8_t ep, uint8_t *data, size_t dlen, unsigned int flags
  *
  * @param[in]  ep           Endpoint address corresponding to the one
  *                          listed in the device configuration table
+ *
+ * @return 0 on success, negative errno code on fail.
  */
 void usb_cancel_transfer(uint8_t ep);
 

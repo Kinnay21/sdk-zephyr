@@ -14,14 +14,12 @@
 #include "hal/radio.h"
 #include "hal/ticker.h"
 
-#include "util/util.h"
 #include "util/memq.h"
 
 #include "pdu.h"
 
 #include "lll.h"
 #include "lll_vendor.h"
-#include "lll_df_types.h"
 #include "lll_conn.h"
 #include "lll_central.h"
 #include "lll_chan.h"
@@ -169,22 +167,22 @@ static int prepare_cb(struct lll_prepare_param *p)
 	/* capture end of Tx-ed PDU, used to calculate HCTO. */
 	radio_tmr_end_capture();
 
-#if defined(HAL_RADIO_GPIO_HAVE_PA_PIN)
+#if defined(CONFIG_BT_CTLR_GPIO_PA_PIN)
 	radio_gpio_pa_setup();
 
 #if defined(CONFIG_BT_CTLR_PHY)
 	radio_gpio_pa_lna_enable(remainder_us +
 				 radio_tx_ready_delay_get(lll->phy_tx,
 							  lll->phy_flags) -
-				 HAL_RADIO_GPIO_PA_OFFSET);
+				 CONFIG_BT_CTLR_GPIO_PA_OFFSET);
 #else /* !CONFIG_BT_CTLR_PHY */
 	radio_gpio_pa_lna_enable(remainder_us +
 				 radio_tx_ready_delay_get(0, 0) -
-				 HAL_RADIO_GPIO_PA_OFFSET);
+				 CONFIG_BT_CTLR_GPIO_PA_OFFSET);
 #endif /* !CONFIG_BT_CTLR_PHY */
-#else /* !HAL_RADIO_GPIO_HAVE_PA_PIN */
+#else /* !CONFIG_BT_CTLR_GPIO_PA_PIN */
 	ARG_UNUSED(remainder_us);
-#endif /* !HAL_RADIO_GPIO_HAVE_PA_PIN */
+#endif /* !CONFIG_BT_CTLR_GPIO_PA_PIN */
 
 #if defined(CONFIG_BT_CTLR_XTAL_ADVANCED) && \
 	(EVENT_OVERHEAD_PREEMPT_US <= EVENT_OVERHEAD_PREEMPT_MIN_US)

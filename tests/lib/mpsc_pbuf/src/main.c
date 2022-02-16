@@ -492,12 +492,9 @@ void item_put_data_overwrite(bool pow2)
 	exp_dropped_len[1] = w;
 
 	for (uintptr_t i = 0; i < repeat; i++) {
-		void *vitem;
 		item.data = (void *)i;
 		item.hdr.data = i;
-		vitem = (uint32_t *)&item;
-		zassert_true(IS_PTR_ALIGNED(vitem, uint32_t), "unaligned ptr");
-		mpsc_pbuf_put_data(&buffer, (uint32_t *)vitem, len);
+		mpsc_pbuf_put_data(&buffer, (uint32_t *)&item, len);
 	}
 
 	uint32_t exp_drop_cnt = (sizeof(void *) == sizeof(uint32_t)) ?
@@ -981,7 +978,6 @@ void t_entry(void *p0, void *p1, void *p2)
 	struct mpsc_pbuf_buffer *buffer = p0;
 	uintptr_t wait_ms = (uintptr_t)p1;
 	struct test_data_ext *t;
-	void *vt;
 
 	t = (struct test_data_ext *)mpsc_pbuf_alloc(buffer,
 						    sizeof(*t) / sizeof(uint32_t),
@@ -994,9 +990,7 @@ void t_entry(void *p0, void *p1, void *p2)
 	t->hdr.len = PUT_EXT_LEN;
 	t->data = k_current_get();
 
-	vt = t;
-	zassert_true(IS_PTR_ALIGNED(vt, union mpsc_pbuf_generic), "unaligned ptr");
-	mpsc_pbuf_commit(buffer, (union mpsc_pbuf_generic *)vt);
+	mpsc_pbuf_commit(buffer, (union mpsc_pbuf_generic *)t);
 	while (1) {
 		k_sleep(K_MSEC(10));
 	}
@@ -1033,7 +1027,6 @@ void test_pending_alloc(void)
 {
 	int prio = k_thread_priority_get(k_current_get());
 	struct mpsc_pbuf_buffer buffer;
-	void *vt;
 
 	k_thread_priority_set(k_current_get(), 3);
 
@@ -1059,9 +1052,7 @@ void test_pending_alloc(void)
 
 		zassert_true(t, NULL);
 		zassert_equal(t->data, tids[ARRAY_SIZE(tids) - 1 - i], NULL);
-		vt = t;
-		zassert_true(IS_PTR_ALIGNED(vt, union mpsc_pbuf_generic), "unaligned ptr");
-		mpsc_pbuf_free(&buffer, (union mpsc_pbuf_generic *)vt);
+		mpsc_pbuf_free(&buffer, (union mpsc_pbuf_generic *)t);
 	}
 
 	zassert_equal(mpsc_pbuf_claim(&buffer), NULL, "No more packets.");

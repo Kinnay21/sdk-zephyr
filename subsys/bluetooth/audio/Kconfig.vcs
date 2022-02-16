@@ -64,7 +64,6 @@ endif # BT_VCS
 config BT_VCS_CLIENT
 	bool "Volume Control Profile Support [EXPERIMENTAL]"
 	select BT_GATT_CLIENT
-	select BT_GATT_AUTO_DISCOVER_CCC
 	select EXPERIMENTAL
 	default n
 	help

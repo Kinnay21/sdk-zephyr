@@ -35,6 +35,9 @@ LOG_MODULE_REGISTER(dma_dw);
 #define DW_CFG_LOW_DEF			0x0
 
 #define DEV_NAME(dev) ((dev)->name)
+#define DEV_DATA(dev) ((struct dw_dma_dev_data *const)(dev)->data)
+#define DEV_CFG(dev) \
+	((const struct dw_dma_dev_cfg *const)(dev)->config)
 
 /* number of tries to wait for reset */
 #define DW_DMA_CFG_TRIES	10000
@@ -52,8 +55,8 @@ static ALWAYS_INLINE uint32_t dw_read(uint32_t dma_base, uint32_t reg)
 
 static void dw_dma_isr(const struct device *dev)
 {
-	const struct dw_dma_dev_cfg *const dev_cfg = dev->config;
-	struct dw_dma_dev_data *const dev_data = dev->data;
+	const struct dw_dma_dev_cfg *const dev_cfg = DEV_CFG(dev);
+	struct dw_dma_dev_data *const dev_data = DEV_DATA(dev);
 	struct dma_chan_data *chan_data;
 
 	uint32_t status_tfr = 0U;
@@ -115,8 +118,8 @@ static void dw_dma_isr(const struct device *dev)
 static int dw_dma_config(const struct device *dev, uint32_t channel,
 			 struct dma_config *cfg)
 {
-	struct dw_dma_dev_data *const dev_data = dev->data;
-	const struct dw_dma_dev_cfg *const dev_cfg = dev->config;
+	struct dw_dma_dev_data *const dev_data = DEV_DATA(dev);
+	const struct dw_dma_dev_cfg *const dev_cfg = DEV_CFG(dev);
 	struct dma_chan_data *chan_data;
 	struct dma_block_config *cfg_blocks;
 	uint32_t m_size;
@@ -249,8 +252,8 @@ static int dw_dma_config(const struct device *dev, uint32_t channel,
 static int dw_dma_reload(const struct device *dev, uint32_t channel,
 			 uint32_t src, uint32_t dst, size_t size)
 {
-	struct dw_dma_dev_data *const dev_data = dev->data;
-	const struct dw_dma_dev_cfg *const dev_cfg = dev->config;
+	struct dw_dma_dev_data *const dev_data = DEV_DATA(dev);
+	const struct dw_dma_dev_cfg *const dev_cfg = DEV_CFG(dev);
 
 	if (channel >= DW_MAX_CHAN) {
 		return -EINVAL;
@@ -267,7 +270,7 @@ static int dw_dma_reload(const struct device *dev, uint32_t channel,
 
 static int dw_dma_transfer_start(const struct device *dev, uint32_t channel)
 {
-	const struct dw_dma_dev_cfg *const dev_cfg = dev->config;
+	const struct dw_dma_dev_cfg *const dev_cfg = DEV_CFG(dev);
 
 	if (channel >= DW_MAX_CHAN) {
 		return -EINVAL;
@@ -281,7 +284,7 @@ static int dw_dma_transfer_start(const struct device *dev, uint32_t channel)
 
 static int dw_dma_transfer_stop(const struct device *dev, uint32_t channel)
 {
-	const struct dw_dma_dev_cfg *const dev_cfg = dev->config;
+	const struct dw_dma_dev_cfg *const dev_cfg = DEV_CFG(dev);
 
 	if (channel >= DW_MAX_CHAN) {
 		return -EINVAL;
@@ -294,8 +297,8 @@ static int dw_dma_transfer_stop(const struct device *dev, uint32_t channel)
 
 static void dw_dma_setup(const struct device *dev)
 {
-	const struct dw_dma_dev_cfg *const dev_cfg = dev->config;
-	struct dw_dma_dev_data *const dev_data = dev->data;
+	const struct dw_dma_dev_cfg *const dev_cfg = DEV_CFG(dev);
+	struct dw_dma_dev_data *const dev_data = DEV_DATA(dev);
 	struct dw_drv_plat_data *dp = dev_data->channel_data;
 	int i;
 
@@ -337,7 +340,7 @@ found:
 
 static int dw_dma_init(const struct device *dev)
 {
-	const struct dw_dma_dev_cfg *const dev_cfg = dev->config;
+	const struct dw_dma_dev_cfg *const dev_cfg = DEV_CFG(dev);
 
 	/* Disable all channels and Channel interrupts */
 	dw_dma_setup(dev);
@@ -410,7 +413,7 @@ static const struct dma_driver_api dw_dma_driver_api = {
 			    NULL,					\
 			    &dw_dma##inst##_data,			\
 			    &dw_dma##inst##_config, POST_KERNEL,	\
-			    CONFIG_DMA_INIT_PRIORITY,			\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &dw_dma_driver_api);			\
 									\
 	static void dw_dma##inst##_irq_config(void)			\

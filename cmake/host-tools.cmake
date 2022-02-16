@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-if(ZEPHYR_SDK_HOST_TOOLS)
-  include(${ZEPHYR_BASE}/cmake/toolchain/zephyr/host-tools.cmake)
-endif()
+include(${ZEPHYR_BASE}/cmake/toolchain/zephyr/host-tools.cmake)
 
 # dtc is an optional dependency
 find_program(
@@ -22,7 +20,7 @@ if(DTC)
     )
 
   if(${dtc_status} EQUAL 0)
-    string(REGEX MATCH "Version: DTC v?([0-9]+[.][0-9]+[.][0-9]+).*" out_var ${dtc_version_output})
+    string(REGEX MATCH "Version: DTC ([0-9]+[.][0-9]+[.][0-9]+).*" out_var ${dtc_version_output})
 
     # Since it is optional, an outdated version is not an error. If an
     # outdated version is discovered, print a warning and proceed as if

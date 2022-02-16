@@ -38,23 +38,15 @@ enum benchmark_role {
 #define DEFAULT_CIS_COUNT       CONFIG_BT_ISO_MAX_CHAN
 #define DEFAULT_CIS_SEC_LEVEL   BT_SECURITY_L1
 
-#define BUFFERS_ENQUEUED 2 /* Number of buffers enqueue for each channel */
-
-BUILD_ASSERT(BUFFERS_ENQUEUED * CONFIG_BT_ISO_MAX_CHAN <= CONFIG_BT_ISO_TX_BUF_COUNT,
-	     "Not enough buffers to enqueue");
-
 struct iso_recv_stats {
 	uint32_t iso_recv_count;
 	uint32_t iso_lost_count;
 };
 
-struct iso_chan_work {
-	struct bt_iso_chan chan;
-	struct k_work_delayable send_work;
-} iso_chans[CONFIG_BT_ISO_MAX_CHAN];
-
 static enum benchmark_role role;
 static struct bt_conn *default_conn;
+static struct k_work_delayable iso_send_work;
+static struct bt_iso_chan iso_chans[CONFIG_BT_ISO_MAX_CHAN];
 static struct bt_iso_chan *cis[CONFIG_BT_ISO_MAX_CHAN];
 static bool advertiser_found;
 static bt_addr_le_t adv_addr;
@@ -66,9 +58,8 @@ static size_t total_iso_conn_count;
 static uint32_t iso_send_count;
 static struct bt_iso_cig *cig;
 
-NET_BUF_POOL_FIXED_DEFINE(tx_pool, 1, BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU),
-			   8, NULL);
-static uint8_t iso_data[CONFIG_BT_ISO_TX_MTU];
+NET_BUF_POOL_FIXED_DEFINE(tx_pool, 1, CONFIG_BT_ISO_TX_MTU, NULL);
+static uint8_t iso_data[CONFIG_BT_ISO_TX_MTU - BT_ISO_CHAN_SEND_RESERVE];
 
 static K_SEM_DEFINE(sem_adv, 0, 1);
 static K_SEM_DEFINE(sem_iso_accept, 0, 1);
@@ -94,7 +85,7 @@ static struct bt_iso_chan_qos iso_qos = {
 	.rx = &iso_rx_qos,
 };
 
-static struct bt_iso_cig_param cig_create_param = {
+static struct bt_iso_cig_create_param cig_create_param = {
 	.interval = DEFAULT_CIS_INTERVAL_US, /* in microseconds */
 	.latency = DEFAULT_CIS_LATENCY_MS, /* milliseconds */
 	.sca = BT_GAP_SCA_UNKNOWN,
@@ -148,62 +139,40 @@ static void print_stats(char *name, struct iso_recv_stats *stats)
 		stats->iso_lost_count);
 }
 
-static void iso_send(struct bt_iso_chan *chan)
+static void iso_timer_timeout(struct k_work *work)
 {
 	int ret;
 	struct net_buf *buf;
-	struct iso_chan_work *chan_work;
 
-	if (chan->qos->tx == NULL || chan->qos->tx->sdu == 0) {
-		return;
+	/* Reschedule as early as possible to reduce time skewing
+	 * Use the ISO interval minus a few microseconds to keep the buffer
+	 * full. This might occasionally skip a transmit, i.e. where the host
+	 * calls `bt_iso_chan_send` but the controller only sending a single
+	 * ISO packet.
+	 */
+	k_work_reschedule(&iso_send_work, K_USEC(cig_create_param.interval - 100));
+
+	for (int i = 0; i < cig_create_param.num_cis; i++) {
+		buf = net_buf_alloc(&tx_pool, K_FOREVER);
+		if (buf == NULL) {
+			LOG_ERR("Could not allocate buffer");
+			return;
+		}
+
+		net_buf_reserve(buf, BT_ISO_CHAN_SEND_RESERVE);
+		net_buf_add_mem(buf, iso_data, iso_tx_qos.sdu);
+		ret = bt_iso_chan_send(&iso_chans[i], buf);
+		if (ret < 0) {
+			LOG_ERR("Unable to send data: %d", ret);
+			net_buf_unref(buf);
+			break;
+		}
+		iso_send_count++;
+
+		if ((iso_send_count % 100) == 0) {
+			LOG_INF("Sending value %u", iso_send_count);
+		}
 	}
-
-	chan_work = CONTAINER_OF(chan, struct iso_chan_work, chan);
-
-	buf = net_buf_alloc(&tx_pool, K_FOREVER);
-	if (buf == NULL) {
-		LOG_ERR("Could not allocate buffer");
-		k_work_reschedule(&chan_work->send_work, K_USEC(cig_create_param.interval));
-		return;
-	}
-
-	net_buf_reserve(buf, BT_ISO_CHAN_SEND_RESERVE);
-	net_buf_add_mem(buf, iso_data, iso_tx_qos.sdu);
-
-	ret = bt_iso_chan_send(chan, buf);
-	if (ret < 0) {
-		LOG_ERR("Unable to send data: %d", ret);
-		net_buf_unref(buf);
-		k_work_reschedule(&chan_work->send_work, K_USEC(cig_create_param.interval));
-		return;
-	}
-
-	iso_send_count++;
-
-	if ((iso_send_count % 100) == 0) {
-		LOG_INF("Sending value %u", iso_send_count);
-	}
-}
-
-static void iso_timer_timeout(struct k_work *work)
-{
-	struct bt_iso_chan *chan;
-	struct iso_chan_work *chan_work;
-	struct k_work_delayable *delayable = k_work_delayable_from_work(work);
-
-	chan_work = CONTAINER_OF(delayable, struct iso_chan_work, send_work);
-	chan = &chan_work->chan;
-
-	iso_send(chan);
-}
-
-static void iso_sent(struct bt_iso_chan *chan)
-{
-	struct iso_chan_work *chan_work;
-
-	chan_work = CONTAINER_OF(chan, struct iso_chan_work, chan);
-
-	k_work_reschedule(&chan_work->send_work, K_MSEC(0));
 }
 
 static void iso_recv(struct bt_iso_chan *chan,
@@ -298,21 +267,19 @@ static void iso_disconnected(struct bt_iso_chan *chan, uint8_t reason)
 }
 
 static struct bt_iso_chan_ops iso_ops = {
-	.recv          = iso_recv,
-	.connected     = iso_connected,
-	.disconnected  = iso_disconnected,
-	.sent          = iso_sent,
+	.recv		= iso_recv,
+	.connected	= iso_connected,
+	.disconnected	= iso_disconnected,
 };
 
-static int iso_accept(const struct bt_iso_accept_info *info,
-		      struct bt_iso_chan **chan)
+static int iso_accept(struct bt_conn *acl, struct bt_iso_chan **chan)
 {
-	LOG_INF("Incoming ISO request from %p", (void *)info->acl);
+	LOG_INF("Incoming ISO request from %p", (void *)acl);
 
 	for (int i = 0; i < ARRAY_SIZE(iso_chans); i++) {
-		if (iso_chans[i].chan.state == BT_ISO_DISCONNECTED) {
+		if (iso_chans[i].state == BT_ISO_DISCONNECTED) {
 			LOG_INF("Returning instance %d", i);
-			*chan = &iso_chans[i].chan;
+			*chan = &iso_chans[i];
 			cig_create_param.num_cis++;
 
 			k_sem_give(&sem_iso_accept);
@@ -822,7 +789,7 @@ static int central_create_cig(void)
 
 	for (int i = 0; i < cig_create_param.num_cis; i++) {
 		connect_param[i].acl = default_conn;
-		connect_param[i].iso_chan = &iso_chans[i].chan;
+		connect_param[i].iso_chan = &iso_chans[i];
 	}
 
 	err = bt_iso_chan_connect(connect_param, cig_create_param.num_cis);
@@ -857,16 +824,14 @@ static int cleanup(void)
 {
 	int err;
 
-	for (size_t i = 0; i < cig_create_param.num_cis; i++) {
-		(void)k_work_cancel_delayable(&iso_chans[i].send_work);
-	}
+	(void)k_work_cancel_delayable(&iso_send_work);
 
 	err = k_sem_take(&sem_disconnected, K_NO_WAIT);
 	if (err != 0) {
 		for (int i = 0; i < cig_create_param.num_cis; i++) {
 			err = k_sem_take(&sem_iso_disconnected, K_NO_WAIT);
 			if (err == 0) {
-				err = bt_iso_chan_disconnect(&iso_chans[i].chan);
+				err = bt_iso_chan_disconnect(&iso_chans[i]);
 				if (err != 0) {
 					LOG_ERR("Could not disconnect ISO[%d]: %d",
 						i, err);
@@ -933,15 +898,8 @@ static int run_central(void)
 		return err;
 	}
 
-	for (size_t i = 0; i < cig_create_param.num_cis; i++) {
-		struct k_work_delayable *work = &iso_chans[i].send_work;
-
-		k_work_init_delayable(work, iso_timer_timeout);
-
-		for (int j = 0; j < BUFFERS_ENQUEUED; j++) {
-			iso_send(&iso_chans[i].chan);
-		}
-	}
+	k_work_init_delayable(&iso_send_work, iso_timer_timeout);
+	k_work_schedule(&iso_send_work, K_MSEC(0));
 
 	err = k_sem_take(&sem_disconnected, K_FOREVER);
 	if (err != 0) {
@@ -950,9 +908,7 @@ static int run_central(void)
 	}
 
 	LOG_INF("Disconnected - Cleaning up");
-	for (size_t i = 0; i < cig_create_param.num_cis; i++) {
-		(void)k_work_cancel_delayable(&iso_chans[i].send_work);
-	}
+	(void)k_work_cancel_delayable(&iso_send_work);
 
 	for (int i = 0; i < cig_create_param.num_cis; i++) {
 		err = k_sem_take(&sem_iso_disconnected, K_FOREVER);
@@ -1030,15 +986,8 @@ static int run_peripheral(void)
 	}
 	total_iso_conn_count++;
 
-	for (size_t i = 0; i < cig_create_param.num_cis; i++) {
-		struct k_work_delayable *work = &iso_chans[i].send_work;
-
-		k_work_init_delayable(work, iso_timer_timeout);
-
-		for (int j = 0; j < BUFFERS_ENQUEUED; j++) {
-			iso_send(&iso_chans[i].chan);
-		}
-	}
+	k_work_init_delayable(&iso_send_work, iso_timer_timeout);
+	k_work_schedule(&iso_send_work, K_MSEC(0));
 
 	/* Wait for disconnect */
 	err = k_sem_take(&sem_disconnected, K_FOREVER);
@@ -1056,9 +1005,7 @@ static int run_peripheral(void)
 	}
 
 	LOG_INF("Disconnected - Cleaning up");
-	for (size_t i = 0; i < cig_create_param.num_cis; i++) {
-		(void)k_work_cancel_delayable(&iso_chans[i].send_work);
-	}
+	(void)k_work_cancel_delayable(&iso_send_work);
 
 	return 0;
 }
@@ -1087,9 +1034,9 @@ void main(void)
 	LOG_INF("Bluetooth initialized");
 
 	for (int i = 0; i < ARRAY_SIZE(iso_chans); i++) {
-		iso_chans[i].chan.ops = &iso_ops;
-		iso_chans[i].chan.qos = &iso_qos;
-		cis[i] = &iso_chans[i].chan;
+		iso_chans->ops = &iso_ops;
+		iso_chans->qos = &iso_qos;
+		cis[i] = &iso_chans[i];
 	}
 
 	/* Init data */

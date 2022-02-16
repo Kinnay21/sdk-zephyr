@@ -9,6 +9,8 @@ target_sources(app PRIVATE
     src/main.c
   )
 
+zephyr_interface_library_named(sof_lib)
+
 zephyr_library_include_directories(app PUBLIC
     ${sof_module}/src/arch/xtensa/include
     ${sof_module}/src/include

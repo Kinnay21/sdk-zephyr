@@ -50,7 +50,4 @@ config ZTEST_STACKSIZE
 
 endif # ARC_MPU_VER
 
-config ARC_HAS_ACCL_REGS
-	default y
-
 endif # SOC_NSIM_EM

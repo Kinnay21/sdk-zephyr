@@ -46,30 +46,13 @@ Property access
 ===============
 
 The following general-purpose macros can be used to access node properties.
-There are special-purpose APIs for accessing the :ref:`devicetree-ranges-property`,
-:ref:`devicetree-reg-property` and :ref:`devicetree-interrupts-property`.
+There are special-purpose APIs for accessing the :ref:`devicetree-reg-property`
+and :ref:`devicetree-interrupts-property`.
 
 Property values can be read using these macros even if the node is disabled,
 as long as it has a matching binding.
 
 .. doxygengroup:: devicetree-generic-prop
-
-.. _devicetree-ranges-property:
-
-``ranges`` property
-===================
-
-Use these APIs instead of :ref:`devicetree-property-access` to access the
-``ranges`` property. Because this property's semantics are defined by the
-devicetree specification, these macros can be used even for nodes without
-matching bindings. However, they take on special semantics when the node's
-binding indicates it is a PCIe bus node, as defined in the
-`PCI Bus Binding to: IEEE Std 1275-1994 Standard for Boot (Initialization Configuration) Firmware`_
-
-.. _PCI Bus Binding to\: IEEE Std 1275-1994 Standard for Boot (Initialization Configuration) Firmware:
-    https://www.openfirmware.info/data/docs/bus.pci.pdf
-
-.. doxygengroup:: devicetree-ranges-prop
 
 .. _devicetree-reg-property:
 
@@ -248,7 +231,8 @@ Fixed flash partitions
 
 These conveniences may be used for the special-purpose ``fixed-partitions``
 compatible used to encode information about flash memory partitions in the
-device tree. See See :dtcompatible:`fixed-partition` for more details.
+device tree. See :zephyr_file:`dts/bindings/mtd/partition.yaml` for this
+compatible's binding.
 
 .. doxygengroup:: devicetree-fixed-partition
 
@@ -357,8 +341,8 @@ device.
      - Sets UART device used for the Bluetooth monitor logging
    * - zephyr,bt-uart
      - Sets UART device used by Bluetooth
-   * - zephyr,canbus
-     - Sets the default CAN controller
+   * - zephyr,can-primary
+     - Sets the primary CAN controller
    * - zephyr,ccm
      - Core-Coupled Memory node on some STM32 SoCs
    * - zephyr,code-partition
@@ -366,8 +350,6 @@ device.
        into
    * - zephyr,console
      - Sets UART device used by console driver
-   * - zephyr,display
-     - Sets the default display controller
    * - zephyr,dtcm
      - Data Tightly Coupled Memory node on some Arm SoCs
    * - zephyr,entropy
@@ -389,8 +371,6 @@ device.
      - Instruction Tightly Coupled Memory node on some Arm SoCs
    * - zephyr,ot-uart
      - Used by the OpenThread to specify UART device for Spinel protocol
-   * - zephyr,pcie-controller
-     - The node corresponding to the PCIe Controller
    * - zephyr,shell-uart
      - Sets UART device used by serial shell backend
    * - zephyr,sram

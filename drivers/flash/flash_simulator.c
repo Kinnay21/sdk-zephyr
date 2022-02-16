@@ -436,7 +436,7 @@ static int flash_init(const struct device *dev)
 }
 
 DEVICE_DT_INST_DEFINE(0, flash_init, NULL,
-		    NULL, NULL, POST_KERNEL, CONFIG_FLASH_INIT_PRIORITY,
+		    NULL, NULL, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		    &flash_sim_api);
 
 #ifdef CONFIG_ARCH_POSIX

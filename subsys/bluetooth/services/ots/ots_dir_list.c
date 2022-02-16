@@ -45,7 +45,7 @@ static void dir_list_object_encode(struct bt_gatt_ots_object *obj,
 	/* Name length */
 	obj_name_len = strlen(obj->metadata.name);
 	__ASSERT(obj_name_len > 0 && obj_name_len <= CONFIG_BT_OTS_OBJ_MAX_NAME_LEN,
-		 "Dir list object len is incorrect %zu", obj_name_len);
+		 "Dir list object len is incorrect %zu", len);
 	net_buf_simple_add_u8(net_buf, obj_name_len);
 
 	/* Name */
@@ -97,6 +97,9 @@ void bt_ots_dir_list_obj_add(struct bt_ots_dir_list *dir_list, void *obj_manager
 	}
 
 	dir_list_object_encode(obj, &dir_list->net_buf);
+
+	/*re-encode the Directory Listing Object size with the is new size*/
+	sys_put_le16(dir_list->net_buf.len, dir_list->net_buf.data);
 
 	/* Update Directory Listing Object metadata size */
 	dir_list->dir_list_obj->metadata.size.cur = dir_list->net_buf.len;
@@ -153,6 +156,9 @@ void bt_ots_dir_list_obj_remove(struct bt_ots_dir_list *dir_list, void *obj_mana
 
 	__ASSERT(offset <= dir_list->net_buf.len, "Object was not removed");
 
+	/*re-encode the Directory Listing Object size with the is new size*/
+	sys_put_le16(dir_list->net_buf.len, dir_list->net_buf.data);
+
 	/* Update Directory Listing Object metadata size */
 	dir_list->dir_list_obj->metadata.size.cur = dir_list->net_buf.len;
 }
@@ -164,7 +170,7 @@ static void dir_list_encode(struct bt_ots_dir_list *dir_list, void *obj_manager)
 
 	err = bt_gatt_ots_obj_manager_first_obj_get(obj_manager, &obj);
 
-	__ASSERT(err == 0 && obj == dir_list->dir_list_obj,
+	__ASSERT(err == 0 && first_obj == dir_list->dir_list_obj,
 		 "Expecting first object to be the Directory Listing Object");
 
 	/* Init with len = 0 to reset data */
@@ -177,6 +183,9 @@ static void dir_list_encode(struct bt_ots_dir_list *dir_list, void *obj_manager)
 
 		err = bt_gatt_ots_obj_manager_next_obj_get(obj_manager, obj, &obj);
 	} while (!err);
+
+	/*re-encode the Directory Listing Object size with the is new size*/
+	sys_put_le16(dir_list->net_buf.len, dir_list->net_buf.data);
 
 	/* Update Directory Listing Object metadata size */
 	dir_list->dir_list_obj->metadata.size.cur = dir_list->net_buf.len;
@@ -201,7 +210,7 @@ void bt_ots_dir_list_init(struct bt_ots_dir_list **dir_list, void *obj_manager)
 	int err;
 	static char *dir_list_obj_name = CONFIG_BT_OTS_DIR_LIST_OBJ_NAME;
 
-	__ASSERT(*dir_list == NULL, "Already initialized");
+	__ASSERT(*dir_list, "Already initialized");
 
 	for (int i = 0; i < ARRAY_SIZE(dir_lists); i++) {
 		if (!dir_lists[i].dir_list_obj) {
@@ -217,7 +226,7 @@ void bt_ots_dir_list_init(struct bt_ots_dir_list **dir_list, void *obj_manager)
 
 	err = bt_gatt_ots_obj_manager_obj_add(obj_manager, &dir_list_obj);
 
-	__ASSERT(!err, "Could not add Directory Listing Object for object manager %p", obj_manager);
+	__ASSERT(!err, "Could not add Directory Listing Object for object manager %p", obj_man);
 
 	memset(&dir_list_obj->metadata, 0, sizeof(dir_list_obj->metadata));
 	dir_list_obj->metadata.name = dir_list_obj_name;

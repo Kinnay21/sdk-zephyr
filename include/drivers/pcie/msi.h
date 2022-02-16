@@ -78,12 +78,10 @@ extern bool pcie_msi_vector_connect(pcie_bdf_t bdf,
  *
  * @param irq The IRQ we wish to trigger via MSI.
  * @param vector The vector for which you want the address (or NULL)
- * @param n_vector the size of the vector array
  * @return A (32-bit) value for the MSI MAP register.
  */
 extern uint32_t pcie_msi_map(unsigned int irq,
-			     msi_vector_t *vector,
-			     uint8_t n_vector);
+			     msi_vector_t *vector);
 
 /**
  * @brief Compute the data for an MSI posted write.
@@ -110,14 +108,6 @@ extern bool pcie_msi_enable(pcie_bdf_t bdf,
 			    msi_vector_t *vectors,
 			    uint8_t n_vector,
 			    unsigned int irq);
-
-/**
- * @brief Check if the given PCI endpoint supports MSI/MSI-X
- *
- * @param bdf the target PCI endpoint
- * @return true if the endpoint support MSI/MSI-X
- */
-extern bool pcie_is_msi(pcie_bdf_t bdf);
 
 /*
  * The first word of the MSI capability is shared with the

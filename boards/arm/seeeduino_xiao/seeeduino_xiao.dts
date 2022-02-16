@@ -6,7 +6,6 @@
 
 /dts-v1/;
 #include <atmel/samd21.dtsi>
-#include "seeed_xiao_connector.dtsi"
 
 / {
 	model = "Seeeduino XIAO";

@@ -161,7 +161,6 @@ struct modem_data {
 	char mdm_revision[MDM_REVISION_LENGTH];
 	char mdm_imei[MDM_IMEI_LENGTH];
 	char mdm_imsi[MDM_IMSI_LENGTH];
-	int mdm_rssi;
 
 #if defined(CONFIG_MODEM_UBLOX_SARA_AUTODETECT_VARIANT)
 	/* modem variant */
@@ -359,18 +358,10 @@ static ssize_t send_socket_data(void *obj,
 	mdata.sock_written = 0;
 
 	if (sock->ip_proto == IPPROTO_UDP) {
-		char ip_str[NET_IPV6_ADDR_LEN];
-
-		ret = modem_context_sprint_ip_addr(dst_addr, ip_str, sizeof(ip_str));
-		if (ret != 0) {
-			LOG_ERR("Error formatting IP string %d", ret);
-			goto exit;
-		}
-
 		ret = modem_context_get_addr_port(dst_addr, &dst_port);
 		snprintk(send_buf, sizeof(send_buf),
 			 "AT+USOST=%d,\"%s\",%u,%zu", sock->id,
-			 ip_str,
+			 modem_context_sprint_ip_addr(dst_addr),
 			 dst_port, buf_len);
 	} else {
 		snprintk(send_buf, sizeof(send_buf), "AT+USOWR=%d,%zu",
@@ -659,13 +650,13 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_rssi_cesq)
 	rsrp = ATOI(argv[5], 0, "rsrp");
 	rxlev = ATOI(argv[0], 0, "rxlev");
 	if (rsrp >= 0 && rsrp <= 97) {
-		mdata.mdm_rssi = -140 + (rsrp - 1);
-		LOG_INF("RSRP: %d", mdata.mdm_rssi);
+		mctx.data_rssi = -140 + (rsrp - 1);
+		LOG_INF("RSRP: %d", mctx.data_rssi);
 	} else if (rxlev >= 0 && rxlev <= 63) {
-		mdata.mdm_rssi = -110 + (rxlev - 1);
-		LOG_INF("RSSI: %d", mdata.mdm_rssi);
+		mctx.data_rssi = -110 + (rxlev - 1);
+		LOG_INF("RSSI: %d", mctx.data_rssi);
 	} else {
-		mdata.mdm_rssi = -1000;
+		mctx.data_rssi = -1000;
 		LOG_INF("RSRP/RSSI not known");
 	}
 
@@ -682,15 +673,15 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_rssi_csq)
 
 	rssi = ATOI(argv[0], 0, "signal_power");
 	if (rssi == 31) {
-		mdata.mdm_rssi = -46;
+		mctx.data_rssi = -46;
 	} else if (rssi >= 0 && rssi <= 31) {
 		/* FIXME: This value depends on the RAT */
-		mdata.mdm_rssi = -110 + ((rssi * 2) + 1);
+		mctx.data_rssi = -110 + ((rssi * 2) + 1);
 	} else {
-		mdata.mdm_rssi = -1000;
+		mctx.data_rssi = -1000;
 	}
 
-	LOG_INF("RSSI: %d", mdata.mdm_rssi);
+	LOG_INF("RSSI: %d", mctx.data_rssi);
 	return 0;
 }
 #endif
@@ -1321,13 +1312,13 @@ restart:
 	counter = 0;
 	/* wait for RSSI < 0 and > -1000 */
 	while (counter++ < MDM_WAIT_FOR_RSSI_COUNT &&
-	       (mdata.mdm_rssi >= 0 ||
-		mdata.mdm_rssi <= -1000)) {
+	       (mctx.data_rssi >= 0 ||
+		mctx.data_rssi <= -1000)) {
 		modem_rssi_query_work(NULL);
 		k_sleep(MDM_WAIT_FOR_RSSI_DELAY);
 	}
 
-	if (mdata.mdm_rssi >= 0 || mdata.mdm_rssi <= -1000) {
+	if (mctx.data_rssi >= 0 || mctx.data_rssi <= -1000) {
 		retry_count++;
 		if (retry_count >= MDM_NETWORK_RETRY_COUNT) {
 			LOG_ERR("Failed network init.  Too many attempts!");
@@ -1547,7 +1538,6 @@ static int offload_connect(void *obj, const struct sockaddr *addr,
 	int ret;
 	char buf[sizeof("AT+USOCO=#,!###.###.###.###!,#####,#\r")];
 	uint16_t dst_port = 0U;
-	char ip_str[NET_IPV6_ADDR_LEN];
 
 	if (!addr) {
 		errno = EINVAL;
@@ -1584,15 +1574,8 @@ static int offload_connect(void *obj, const struct sockaddr *addr,
 		return 0;
 	}
 
-	ret = modem_context_sprint_ip_addr(addr, ip_str, sizeof(ip_str));
-	if (ret != 0) {
-		errno = -ret;
-		LOG_ERR("Error formatting IP string %d", ret);
-		return -1;
-	}
-
 	snprintk(buf, sizeof(buf), "AT+USOCO=%d,\"%s\",%d", sock->id,
-		ip_str, dst_port);
+		 modem_context_sprint_ip_addr(addr), dst_port);
 	ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
 			     NULL, 0U, buf,
 			     &mdata.sem_response, MDM_CMD_CONN_TIMEOUT);
@@ -1605,6 +1588,31 @@ static int offload_connect(void *obj, const struct sockaddr *addr,
 	sock->is_connected = true;
 	errno = 0;
 	return 0;
+}
+
+/* support for POLLIN only for now. */
+static int offload_poll(struct zsock_pollfd *fds, int nfds, int msecs)
+{
+	int i;
+	void *obj;
+
+	/* Only accept modem sockets. */
+	for (i = 0; i < nfds; i++) {
+		if (fds[i].fd < 0) {
+			continue;
+		}
+
+		/* If vtable matches, then it's modem socket. */
+		obj = z_get_fd_obj(fds[i].fd,
+				   (const struct fd_op_vtable *)
+						&offload_socket_fd_op_vtable,
+				   EINVAL);
+		if (obj == NULL) {
+			return -1;
+		}
+	}
+
+	return modem_socket_poll(&mdata.socket_config, fds, nfds, msecs);
 }
 
 static ssize_t offload_recvfrom(void *obj, void *buf, size_t len,
@@ -1720,25 +1728,22 @@ static ssize_t offload_sendto(void *obj, const void *buf, size_t len,
 static int offload_ioctl(void *obj, unsigned int request, va_list args)
 {
 	switch (request) {
-	case ZFD_IOCTL_POLL_PREPARE: {
-		struct zsock_pollfd *pfd;
-		struct k_poll_event **pev;
-		struct k_poll_event *pev_end;
+	case ZFD_IOCTL_POLL_PREPARE:
+		return -EXDEV;
 
-		pfd = va_arg(args, struct zsock_pollfd *);
-		pev = va_arg(args, struct k_poll_event **);
-		pev_end = va_arg(args, struct k_poll_event *);
+	case ZFD_IOCTL_POLL_UPDATE:
+		return -EOPNOTSUPP;
 
-		return modem_socket_poll_prepare(&mdata.socket_config, obj, pfd, pev, pev_end);
-	}
-	case ZFD_IOCTL_POLL_UPDATE: {
-		struct zsock_pollfd *pfd;
-		struct k_poll_event **pev;
+	case ZFD_IOCTL_POLL_OFFLOAD: {
+		struct zsock_pollfd *fds;
+		int nfds;
+		int timeout;
 
-		pfd = va_arg(args, struct zsock_pollfd *);
-		pev = va_arg(args, struct k_poll_event **);
+		fds = va_arg(args, struct zsock_pollfd *);
+		nfds = va_arg(args, int);
+		timeout = va_arg(args, int);
 
-		return modem_socket_poll_update(obj, pfd, pev);
+		return offload_poll(fds, nfds, timeout);
 	}
 
 	case F_GETFL:
@@ -1951,12 +1956,7 @@ static bool offload_is_supported(int family, int type, int proto)
 	return true;
 }
 
-#define SARA_R4_SOCKET_PRIORITY 40
-
-BUILD_ASSERT(SARA_R4_SOCKET_PRIORITY < CONFIG_NET_SOCKETS_TLS_PRIORITY,
-	     "SARA_R4_SOCKET_PRIORITY must be < than NET_SOCKETS_TLS_PRIORITY");
-
-NET_SOCKET_REGISTER(ublox_sara_r4, SARA_R4_SOCKET_PRIORITY, AF_UNSPEC,
+NET_SOCKET_REGISTER(ublox_sara_r4, NET_SOCKET_DEFAULT_PRIO, AF_UNSPEC,
 		    offload_is_supported, offload_socket);
 
 #if defined(CONFIG_DNS_RESOLVER)
@@ -2179,7 +2179,6 @@ static int modem_init(const struct device *dev)
 	mctx.data_model = mdata.mdm_model;
 	mctx.data_revision = mdata.mdm_revision;
 	mctx.data_imei = mdata.mdm_imei;
-	mctx.data_rssi = &mdata.mdm_rssi;
 
 	/* pin setup */
 	mctx.pins = modem_pins;

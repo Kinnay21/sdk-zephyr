@@ -17,7 +17,9 @@ extern "C" {
 
 #include <zephyr/types.h>
 
+#ifdef CONFIG_NEWLIB_LIBC
 #include <time.h>
+#endif
 
 /* The size includes the NUL character, the strlen doesn't */
 #define MDM_HL7800_REVISION_MAX_SIZE 29
@@ -353,14 +355,17 @@ void mdm_hl7800_register_event_callback(mdm_hl7800_event_callback_t cb);
  */
 void mdm_hl7800_generate_status_events(void);
 
+#ifdef CONFIG_NEWLIB_LIBC
 /**
  * @brief Get the local time from the modem's real time clock.
  *
  * @param tm time structure
  * @param offset The amount the local time is offset from GMT/UTC in seconds.
- * @return int32_t 0 if successful
+ *
+ * @param 0 if successful
  */
 int32_t mdm_hl7800_get_local_time(struct tm *tm, int32_t *offset);
+#endif
 
 #ifdef CONFIG_MODEM_HL7800_FW_UPDATE
 /**

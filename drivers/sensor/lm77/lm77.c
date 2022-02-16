@@ -11,7 +11,6 @@
 #include <drivers/i2c.h>
 #include <drivers/sensor.h>
 #include <logging/log.h>
-#include <pm/device.h>
 #include <sys/byteorder.h>
 
 LOG_MODULE_REGISTER(lm77, CONFIG_SENSOR_LOG_LEVEL);
@@ -362,8 +361,7 @@ static int lm77_init(const struct device *dev)
 }
 
 #ifdef CONFIG_PM_DEVICE
-static int lm77_pm_action(const struct device *dev,
-			  enum pm_device_action action)
+static int lm77_pm_control(const struct device *dev, enum pm_device_action action)
 {
 	const struct lm77_config *config = dev->config;
 	union lm77_reg_config creg = config->config_dt;
@@ -396,6 +394,12 @@ static int lm77_pm_action(const struct device *dev,
 #define LM77_INT_GPIO_INIT(n)
 #endif /* ! LM77_TRIGGER_SUPPORT */
 
+#ifdef CONFIG_PM_DEVICE
+#define LM77_PM_CONTROL_FUNC lm77_pm_control
+#else /* CONFIG_PM_DEVICE */
+#define LM77_PM_CONTROL_FUNC NULL
+#endif /* ! CONFIG_PM_DEVICE */
+
 #define LM77_INIT(n)							\
 	static struct lm77_data lm77_data_##n;				\
 									\
@@ -412,10 +416,8 @@ static int lm77_pm_action(const struct device *dev,
 		LM77_INT_GPIO_INIT(n)					\
 	};								\
 									\
-	PM_DEVICE_DT_INST_DEFINE(n, lm77_pm_action);			\
-									\
 	DEVICE_DT_INST_DEFINE(n, lm77_init,				\
-			      PM_DEVICE_DT_INST_GET(n),			\
+			      LM77_PM_CONTROL_FUNC,			\
 			      &lm77_data_##n,				\
 			      &lm77_config_##n, POST_KERNEL,		\
 			      CONFIG_SENSOR_INIT_PRIORITY,		\

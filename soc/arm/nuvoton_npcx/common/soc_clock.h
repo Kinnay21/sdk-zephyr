@@ -7,11 +7,6 @@
 #ifndef _NUVOTON_NPCX_SOC_CLOCK_H_
 #define _NUVOTON_NPCX_SOC_CLOCK_H_
 
-#include <stdbool.h>
-#include <stdint.h>
-
-#include <devicetree.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -30,7 +30,7 @@ interaction is required. This module is a Unix-like shell with these features:
 * Built-in handler to display help for the commands.
 * Support for wildcards: ``*`` and ``?``.
 * Support for meta keys.
-* Support for getopt and getopt_long.
+* Support for getopt.
 * Kconfig configuration to optimize memory usage.
 
 .. note::
@@ -486,51 +486,22 @@ Getopt Feature
 
 Some shell users apart from subcommands might need to use options as well.
 the arguments string, looking for supported options. Typically, this task
-is accomplished by the ``getopt`` familly functions.
+is accomplished by the ``getopt`` function.
 
-For this purpose shell supports the getopt and getopt_long libraries available
-in the FreeBSD project. This feature is activated by:
-:kconfig:`CONFIG_GETOPT` set to ``y`` and :kconfig:`CONFIG_GETOPT_LONG`
-set to ``y``.
+For this purpose shell supports the getopt library available
+in the FreeBSD project. I was modified so that it can be used
+by all instances of the shell at the same time, hence its call requires
+one more parameter.
 
-This feature can be used in thread safe as well as non thread safe manner.
-The former is full compatible with regular getopt usage while the latter
-a bit differs.
-
-An example non-thread safe usage:
+An example usage:
 
 .. code-block:: c
 
-  char *cvalue = NULL;
-  while ((char c = getopt(argc, argv, "abhc:")) != -1) {
-        switch (c) {
-        case 'c':
-                cvalue = optarg;
-                break;
-        default:
-                break;
-        }
+  while ((char c = shell_getopt(shell, argc, argv, "abhc:")) != -1) {
+     /* some code */
   }
 
-An example thread safe usage:
-
-.. code-block:: c
-
-  char *cvalue = NULL;
-  struct getopt_state *state;
-  while ((char c = getopt(argc, argv, "abhc:")) != -1) {
-        state = getopt_state_get();
-        switch (c) {
-        case 'c':
-                cvalue = state->optarg;
-                break;
-        default:
-                break;
-        }
-  }
-
-Thread safe getopt functionality is activated by
-:kconfig:`CONFIG_SHELL_GETOPT` set to ``y``.
+This module is activated by :kconfig:`CONFIG_SHELL_GETOPT` set to ``y``.
 
 Obscured Input Feature
 **********************

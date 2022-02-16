@@ -7,7 +7,6 @@
 
 #include <toolchain.h>
 #include <sys/util.h>
-#include <sys/byteorder.h>
 
 #include "hal/ccm.h"
 #include "hal/radio.h"
@@ -16,7 +15,6 @@
 
 #include "util/util.h"
 #include "util/memq.h"
-#include "util/dbuf.h"
 
 #include "pdu.h"
 
@@ -49,7 +47,6 @@ static void prepare(void *param);
 static int create_prepare_cb(struct lll_prepare_param *p);
 static int prepare_cb(struct lll_prepare_param *p);
 static int prepare_cb_common(struct lll_prepare_param *p, uint8_t chan_idx);
-static int is_abort_cb(void *next, void *curr, lll_prepare_cb_t *resume_cb);
 static void abort_cb(struct lll_prepare_param *prepare_param, void *param);
 static int isr_rx(struct lll_sync *lll, uint8_t node_type, uint8_t crc_ok, uint8_t rssi_ready,
 		  enum sync_status status);
@@ -99,7 +96,7 @@ void lll_sync_create_prepare(void *param)
 	prepare(param);
 
 	/* Invoke common pipeline handling of prepare */
-	err = lll_prepare(is_abort_cb, abort_cb, create_prepare_cb, 0, param);
+	err = lll_prepare(lll_is_abort_cb, abort_cb, create_prepare_cb, 0, param);
 	LL_ASSERT(!err || err == -EINPROGRESS);
 }
 
@@ -110,7 +107,7 @@ void lll_sync_prepare(void *param)
 	prepare(param);
 
 	/* Invoke common pipeline handling of prepare */
-	err = lll_prepare(is_abort_cb, abort_cb, prepare_cb, 0, param);
+	err = lll_prepare(lll_is_abort_cb, abort_cb, prepare_cb, 0, param);
 	LL_ASSERT(!err || err == -EINPROGRESS);
 }
 
@@ -147,9 +144,14 @@ void lll_sync_aux_prepare_cb(struct lll_sync *lll,
 	/* Start setting up Radio h/w */
 	radio_reset();
 
+#if defined(CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL)
+	radio_tx_power_set(lll_aux->tx_pwr_lvl);
+#else
+	radio_tx_power_set(RADIO_TXP_DEFAULT);
+#endif
+
 	radio_phy_set(lll_aux->phy, 1);
-	radio_pkt_configure(RADIO_PKT_CONF_LENGTH_8BIT, LL_EXT_OCTETS_RX_MAX,
-			    RADIO_PKT_CONF_PHY(lll_aux->phy));
+	radio_pkt_configure(8, LL_EXT_OCTETS_RX_MAX, (lll_aux->phy << 1));
 
 	node_rx = ull_pdu_rx_alloc_peek(1);
 	LL_ASSERT(node_rx);
@@ -158,8 +160,10 @@ void lll_sync_aux_prepare_cb(struct lll_sync *lll,
 
 	/* Set access address for sync */
 	radio_aa_set(lll->access_addr);
-	radio_crc_configure(PDU_CRC_POLYNOMIAL,
-				sys_get_le24(lll->crc_init));
+	radio_crc_configure(((0x5bUL) | ((0x06UL) << 8) | ((0x00UL) << 16)),
+			    (((uint32_t)lll->crc_init[2] << 16) |
+			     ((uint32_t)lll->crc_init[1] << 8) |
+			     ((uint32_t)lll->crc_init[0])));
 
 	lll_chan_set(lll_aux->chan);
 
@@ -171,12 +175,16 @@ void lll_sync_aux_prepare_cb(struct lll_sync *lll,
 	cfg = lll_df_sync_cfg_latest_get(&lll->df_cfg, NULL);
 
 	if (cfg->is_enabled) {
-		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  lll_aux->chan, CTE_INFO_IN_PAYLOAD);
+		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len,
+					  cfg->ant_ids, lll_aux->chan);
 		cfg->cte_count = 0;
-	}
+
+		radio_switch_complete_and_phy_end_disable();
+	} else
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
-	radio_switch_complete_and_disable();
+	{
+		radio_switch_complete_and_disable();
+	}
 }
 
 #if defined(CONFIG_BT_CTLR_SYNC_PERIODIC_CTE_TYPE_FILTERING)
@@ -273,26 +281,19 @@ static int create_prepare_cb(struct lll_prepare_param *p)
 	struct lll_df_sync_cfg *cfg;
 
 	cfg = lll_df_sync_cfg_latest_get(&lll->df_cfg, NULL);
-#endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
 
-	if (false) {
-#if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
-	} else if (cfg->is_enabled) {
-
+	if (cfg->is_enabled) {
 		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  chan_idx, CTE_INFO_IN_PAYLOAD);
+					  chan_idx);
 		cfg->cte_count = 0;
+
+		radio_switch_complete_and_phy_end_disable();
+	} else
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
-	} else if (IS_ENABLED(CONFIG_BT_CTLR_DF_SUPPORT)) {
+	{
 		radio_df_cte_inline_set_enabled(false);
+		radio_switch_complete_and_disable();
 	}
-
-	radio_switch_complete_and_disable();
-
-	/* RSSI enable must be called after radio_switch_XXX function because it clears
-	 * RADIO->SHORTS register, thus disables all other shortcuts.
-	 */
-	radio_rssi_measure();
 
 	radio_isr_set(isr_rx_adv_sync_estab, lll);
 
@@ -339,17 +340,15 @@ static int prepare_cb(struct lll_prepare_param *p)
 
 	if (cfg->is_enabled) {
 		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  chan_idx, CTE_INFO_IN_PAYLOAD);
+					  chan_idx);
 		cfg->cte_count = 0;
-	}
+
+		radio_switch_complete_and_phy_end_disable();
+	} else
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
-
-	radio_switch_complete_and_disable();
-
-	/* RSSI enable must be called after radio_switch_XXX function because it clears
-	 * RADIO->SHORTS register, thus disables all other shortcuts.
-	 */
-	radio_rssi_measure();
+	{
+		radio_switch_complete_and_disable();
+	}
 
 	radio_isr_set(isr_rx_adv_sync, lll);
 
@@ -387,12 +386,19 @@ static int prepare_cb_common(struct lll_prepare_param *p, uint8_t chan_idx)
 	/* Start setting up Radio h/w */
 	radio_reset();
 
+#if defined(CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL)
+	radio_tx_power_set(lll->tx_pwr_lvl);
+#else
+	radio_tx_power_set(RADIO_TXP_DEFAULT);
+#endif /* CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL */
+
 	radio_phy_set(lll->phy, 1);
-	radio_pkt_configure(RADIO_PKT_CONF_LENGTH_8BIT, LL_EXT_OCTETS_RX_MAX,
-			    RADIO_PKT_CONF_PHY(lll->phy));
+	radio_pkt_configure(8, LL_EXT_OCTETS_RX_MAX, (lll->phy << 1));
 	radio_aa_set(lll->access_addr);
-	radio_crc_configure(PDU_CRC_POLYNOMIAL,
-					sys_get_le24(lll->crc_init));
+	radio_crc_configure(((0x5bUL) | ((0x06UL) << 8) | ((0x00UL) << 16)),
+			    (((uint32_t)lll->crc_init[2] << 16) |
+			     ((uint32_t)lll->crc_init[1] << 8) |
+			     ((uint32_t)lll->crc_init[0])));
 
 	lll_chan_set(chan_idx);
 
@@ -423,14 +429,15 @@ static int prepare_cb_common(struct lll_prepare_param *p, uint8_t chan_idx)
 	radio_tmr_hcto_configure(hcto);
 
 	radio_tmr_end_capture();
+	radio_rssi_measure();
 
-#if defined(HAL_RADIO_GPIO_HAVE_LNA_PIN)
+#if defined(CONFIG_BT_CTLR_GPIO_LNA_PIN)
 	radio_gpio_lna_setup();
 
 	radio_gpio_pa_lna_enable(remainder_us +
 				 radio_rx_ready_delay_get(lll->phy, 1) -
-				 HAL_RADIO_GPIO_LNA_OFFSET);
-#endif /* HAL_RADIO_GPIO_HAVE_LNA_PIN */
+				 CONFIG_BT_CTLR_GPIO_LNA_OFFSET);
+#endif /* CONFIG_BT_CTLR_GPIO_LNA_PIN */
 
 #if defined(CONFIG_BT_CTLR_XTAL_ADVANCED) && \
 	(EVENT_OVERHEAD_PREEMPT_US <= EVENT_OVERHEAD_PREEMPT_MIN_US)
@@ -453,32 +460,6 @@ static int prepare_cb_common(struct lll_prepare_param *p, uint8_t chan_idx)
 
 	DEBUG_RADIO_START_O(1);
 
-	return 0;
-}
-
-static int is_abort_cb(void *next, void *curr, lll_prepare_cb_t *resume_cb)
-{
-	/* Sync context shall not resume when being preempted, i.e. they
-	 * shall not use -EAGAIN as return value.
-	 */
-	ARG_UNUSED(resume_cb);
-
-	/* Different radio event overlap */
-	if (next != curr) {
-		struct lll_scan *lll;
-
-		lll = ull_scan_lll_is_valid_get(next);
-		if (!lll) {
-			/* Abort current event as next event is not a scan
-			 * event.
-			 */
-			return -ECANCELED;
-		}
-	}
-
-	/* Do not abort if current periodic sync event overlaps next interval
-	 * or next event is a scan event.
-	 */
 	return 0;
 }
 
@@ -554,8 +535,7 @@ static void isr_aux_setup(void *param)
 
 	/* Setup radio for auxiliary PDU scan */
 	radio_phy_set(phy_aux, 1);
-	radio_pkt_configure(RADIO_PKT_CONF_LENGTH_8BIT, LL_EXT_OCTETS_RX_MAX,
-			    RADIO_PKT_CONF_PHY(phy_aux));
+	radio_pkt_configure(8, LL_EXT_OCTETS_RX_MAX, (phy_aux << 1));
 
 	lll_chan_set(aux_ptr->chan_idx);
 
@@ -570,10 +550,14 @@ static void isr_aux_setup(void *param)
 
 	if (cfg->is_enabled && is_max_cte_reached(cfg->max_cte_count, cfg->cte_count)) {
 		lll_df_conf_cte_rx_enable(cfg->slot_durations, cfg->ant_sw_len, cfg->ant_ids,
-					  aux_ptr->chan_idx, CTE_INFO_IN_PAYLOAD);
-	}
+					  aux_ptr->chan_idx);
+
+		radio_switch_complete_and_phy_end_disable();
+	} else
 #endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
-	radio_switch_complete_and_disable();
+	{
+		radio_switch_complete_and_disable();
+	}
 
 	/* Setup radio rx on micro second offset. Note that radio_end_us stores
 	 * PDU start time in this case.
@@ -601,13 +585,13 @@ static void isr_aux_setup(void *param)
 	/* scanner always measures RSSI */
 	radio_rssi_measure();
 
-#if defined(HAL_RADIO_GPIO_HAVE_LNA_PIN)
+#if defined(CONFIG_BT_CTLR_GPIO_LNA_PIN)
 	radio_gpio_lna_setup();
 
 	radio_gpio_pa_lna_enable(aux_start_us +
 				 radio_rx_ready_delay_get(phy_aux, 1) -
-				 HAL_RADIO_GPIO_LNA_OFFSET);
-#endif /* HAL_RADIO_GPIO_HAVE_LNA_PIN */
+				 CONFIG_BT_CTLR_GPIO_LNA_OFFSET);
+#endif /* CONFIG_BT_CTLR_GPIO_LNA_PIN */
 }
 
 /**
@@ -626,20 +610,13 @@ static void isr_aux_setup(void *param)
 static int isr_rx(struct lll_sync *lll, uint8_t node_type, uint8_t crc_ok, uint8_t rssi_ready,
 		  enum sync_status status)
 {
-	bool sched = false;
 	int err;
 
 	/* Check CRC and generate Periodic Advertising Report */
 	if (crc_ok) {
 		struct node_rx_pdu *node_rx;
 
-		/* Verify if there are free RX buffers for:
-		 * - reporting just received PDU
-		 * - allocating an extra node_rx for periodic report incomplete
-		 * - a buffer for receiving data in a connection
-		 * - a buffer for receiving empty PDU
-		 */
-		node_rx = ull_pdu_rx_alloc_peek(4);
+		node_rx = ull_pdu_rx_alloc_peek(3);
 		if (node_rx) {
 			struct node_rx_ftr *ftr;
 			struct pdu_adv *pdu;
@@ -658,11 +635,6 @@ static int isr_rx(struct lll_sync *lll, uint8_t node_type, uint8_t crc_ok, uint8
 					    radio_rx_chain_delay_get(lll->phy,
 								     1);
 			ftr->sync_status = status;
-			ftr->sync_rx_enabled = lll->is_rx_enabled;
-
-			if (node_type != NODE_RX_TYPE_EXT_AUX_REPORT) {
-				ftr->extra = ull_pdu_rx_alloc();
-			}
 
 			pdu = (void *)node_rx->pdu;
 
@@ -671,10 +643,7 @@ static int isr_rx(struct lll_sync *lll, uint8_t node_type, uint8_t crc_ok, uint8
 								isr_aux_setup,
 								lll);
 			if (ftr->aux_lll_sched) {
-				if (node_type != NODE_RX_TYPE_EXT_AUX_REPORT) {
-					lll->is_aux_sched = 1U;
-				}
-
+				lll->is_aux_sched = 1U;
 				err = -EBUSY;
 			} else {
 				err = 0;
@@ -682,31 +651,23 @@ static int isr_rx(struct lll_sync *lll, uint8_t node_type, uint8_t crc_ok, uint8
 
 			ull_rx_put(node_rx->hdr.link, node_rx);
 
-			sched = true;
-		} else if (node_type == NODE_RX_TYPE_EXT_AUX_REPORT) {
-			err = -ENOMEM;
+#if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
+			(void)create_iq_report(lll, rssi_ready,
+					       BT_HCI_LE_CTE_CRC_OK);
+#endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
+
+			ull_rx_sched();
 		} else {
 			err = 0;
 		}
-
-#if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
-		(void)create_iq_report(lll, rssi_ready, BT_HCI_LE_CTE_CRC_OK);
-		sched = true;
-#endif /* CONFIG_BT_CTLR_DF_SCAN_CTE_RX */
-
 	} else {
 #if defined(CONFIG_BT_CTLR_DF_SAMPLE_CTE_FOR_PDU_WITH_BAD_CRC)
 		err = create_iq_report(lll, rssi_ready, BT_HCI_LE_CTE_CRC_ERR_CTE_BASED_TIME);
 		if (!err) {
-			sched = true;
+			ull_rx_sched();
 		}
 #endif /* CONFIG_BT_CTLR_DF_SAMPLE_CTE_FOR_PDU_WITH_BAD_CRC */
-
 		err = 0;
-	}
-
-	if (sched) {
-		ull_rx_sched();
 	}
 
 	return err;
@@ -862,9 +823,6 @@ static void isr_rx_aux_chain(void *param)
 		 */
 		lll_isr_status_reset();
 
-		crc_ok =  0U;
-		err = 0;
-
 		goto isr_rx_aux_chain_done;
 	}
 
@@ -884,9 +842,6 @@ static void isr_rx_aux_chain(void *param)
 	if (!trx_done) {
 		/* TODO: Combine the early exit with above if-then-else block
 		 */
-
-		err = 0;
-
 		goto isr_rx_aux_chain_done;
 	}
 
@@ -901,13 +856,9 @@ static void isr_rx_aux_chain(void *param)
 		return;
 	}
 
-isr_rx_aux_chain_done:
-	if (!crc_ok || err) {
+	if (!crc_ok) {
 		struct node_rx_pdu *node_rx;
 
-		/* Generate message to release aux context and flag the report
-		 * generated thereafter by HCI as incomplete.
-		 */
 		node_rx = ull_pdu_rx_alloc();
 		LL_ASSERT(node_rx);
 
@@ -920,12 +871,13 @@ isr_rx_aux_chain_done:
 		ull_rx_sched();
 	}
 
+isr_rx_aux_chain_done:
 	if (lll->is_aux_sched) {
 		lll->is_aux_sched = 0U;
 
 		isr_rx_done_cleanup(lll, 1U, false);
 	} else {
-		lll_isr_cleanup(lll_aux);
+		lll_isr_cleanup(lll);
 	}
 }
 
@@ -960,37 +912,8 @@ static void isr_rx_done_cleanup(struct lll_sync *lll, uint8_t crc_ok, bool sync_
 
 static void isr_done(void *param)
 {
-	struct lll_sync *lll;
-
 	lll_isr_status_reset();
-
-	/* Generate incomplete data status and release aux context when
-	 * sync event is using LLL scheduling.
-	 */
-	lll = param;
-
-	/* LLL scheduling used for chain PDU reception is aborted/preempted */
-	if (lll->is_aux_sched) {
-		struct node_rx_pdu *node_rx;
-
-		lll->is_aux_sched = 0U;
-
-		/* Generate message to release aux context and flag the report
-		 * generated thereafter by HCI as incomplete.
-		 */
-		node_rx = ull_pdu_rx_alloc();
-		LL_ASSERT(node_rx);
-
-		node_rx->hdr.type = NODE_RX_TYPE_EXT_AUX_RELEASE;
-
-		node_rx->hdr.rx_ftr.param = lll;
-		node_rx->hdr.rx_ftr.aux_failed = 1U;
-
-		ull_rx_put(node_rx->hdr.link, node_rx);
-		ull_rx_sched();
-	}
-
-	isr_rx_done_cleanup(param, ((trx_cnt) ? 1U : 0U), false);
+	isr_rx_done_cleanup(param, ((trx_cnt > 1U) ? 1U : 0U), false);
 }
 
 #if defined(CONFIG_BT_CTLR_DF_SCAN_CTE_RX)
@@ -1017,9 +940,8 @@ static inline int create_iq_report(struct lll_sync *lll, uint8_t rssi_ready,
 				cte_info = radio_df_cte_status_get();
 				ant = radio_df_pdu_antenna_switch_pattern_get();
 				iq_report = ull_df_iq_report_alloc();
-				LL_ASSERT(iq_report);
 
-				iq_report->hdr.type = NODE_RX_TYPE_SYNC_IQ_SAMPLE_REPORT;
+				iq_report->hdr.type = NODE_RX_TYPE_IQ_SAMPLE_REPORT;
 				iq_report->sample_count = sample_cnt;
 				iq_report->packet_status = packet_status;
 				iq_report->rssi_ant_id = ant;

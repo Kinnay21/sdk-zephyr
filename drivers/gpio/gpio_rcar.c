@@ -309,8 +309,8 @@ static const struct gpio_driver_api gpio_rcar_driver_api = {
 			      NULL,				    \
 			      &gpio_rcar_data_##n,		    \
 			      &gpio_rcar_cfg_##n,		    \
-			      PRE_KERNEL_1,			    \
-			      CONFIG_GPIO_INIT_PRIORITY,	    \
+			      POST_KERNEL,			    \
+			      CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,  \
 			      &gpio_rcar_driver_api		    \
 			      );				    \
 	static void gpio_rcar_##n##_init(const struct device *dev)  \

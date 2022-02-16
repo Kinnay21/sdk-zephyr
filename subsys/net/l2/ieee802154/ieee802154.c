@@ -29,7 +29,15 @@ LOG_MODULE_REGISTER(net_ieee802154, CONFIG_NET_L2_IEEE802154_LOG_LEVEL);
 
 #define BUF_TIMEOUT K_MSEC(50)
 
-NET_BUF_POOL_DEFINE(frame_buf_pool, 1, IEEE802154_MTU - 2, 8, NULL);
+/* No need to hold space for the FCS */
+static uint8_t frame_buffer_data[IEEE802154_MTU - 2];
+
+static struct net_buf frame_buf = {
+	.data = frame_buffer_data,
+	.size = IEEE802154_MTU - 2,
+	.frags = NULL,
+	.__buf = frame_buffer_data,
+};
 
 #define PKT_TITLE      "IEEE 802.15.4 packet content:"
 #define TX_PKT_TITLE   "> " PKT_TITLE
@@ -278,7 +286,6 @@ static int ieee802154_send(struct net_if *iface, struct net_pkt *pkt)
 {
 	struct ieee802154_context *ctx = net_if_l2_data(iface);
 	struct ieee802154_fragment_ctx f_ctx;
-	static struct net_buf *frame_buf;
 	struct net_buf *buf;
 	uint8_t ll_hdr_size;
 	bool fragment;
@@ -288,12 +295,8 @@ static int ieee802154_send(struct net_if *iface, struct net_pkt *pkt)
 		return -EINVAL;
 	}
 
-	if (frame_buf == NULL) {
-		frame_buf = net_buf_alloc(&frame_buf_pool, K_FOREVER);
-	}
-
-	ll_hdr_size = ieee802154_compute_header_size(
-			iface, (struct in6_addr *)&NET_IPV6_HDR(pkt)->dst);
+	ll_hdr_size = ieee802154_compute_header_size(iface,
+						     &NET_IPV6_HDR(pkt)->dst);
 
 	/* len will hold the hdr size difference on success */
 	len = net_6lo_compress(pkt, true);
@@ -307,24 +310,26 @@ static int ieee802154_send(struct net_if *iface, struct net_pkt *pkt)
 	ieee802154_fragment_ctx_init(&f_ctx, pkt, len, true);
 
 	len = 0;
-	net_buf_reset(frame_buf);
+	frame_buf.len = 0U;
 	buf = pkt->buffer;
 
 	while (buf) {
 		int ret;
 
-		net_buf_add(frame_buf, ll_hdr_size);
+		net_buf_add(&frame_buf, ll_hdr_size);
 
 		if (fragment) {
-			ieee802154_fragment(&f_ctx, frame_buf, true);
+			ieee802154_fragment(&f_ctx, &frame_buf, true);
 			buf = f_ctx.buf;
 		} else {
-			net_buf_add_mem(frame_buf, buf->data, buf->len);
+			memcpy(frame_buf.data + frame_buf.len,
+			       buf->data, buf->len);
+			net_buf_add(&frame_buf, buf->len);
 			buf = buf->frags;
 		}
 
 		if (!ieee802154_create_data_frame(ctx, net_pkt_lladdr_dst(pkt),
-						  frame_buf, ll_hdr_size)) {
+						  &frame_buf, ll_hdr_size)) {
 			return -EINVAL;
 		}
 
@@ -332,19 +337,19 @@ static int ieee802154_send(struct net_if *iface, struct net_pkt *pkt)
 		    ieee802154_get_hw_capabilities(iface) &
 		    IEEE802154_HW_CSMA) {
 			ret = ieee802154_tx(iface, IEEE802154_TX_MODE_CSMA_CA,
-					    pkt, frame_buf);
+					    pkt, &frame_buf);
 		} else {
-			ret = ieee802154_radio_send(iface, pkt, frame_buf);
+			ret = ieee802154_radio_send(iface, pkt, &frame_buf);
 		}
 
 		if (ret) {
 			return ret;
 		}
 
-		len += frame_buf->len;
+		len += frame_buf.len;
 
 		/* Reinitializing frame_buf */
-		net_buf_reset(frame_buf);
+		frame_buf.len = 0U;
 	}
 
 	net_pkt_unref(pkt);

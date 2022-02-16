@@ -52,8 +52,7 @@ but not supported by this SOC"
 #endif
 
 #if defined(UART_GECKO_HW_FLOW_CONTROL) && \
-	(!defined(CONFIG_SOC_GECKO_HAS_INDIVIDUAL_PIN_LOCATION) && \
-	 !defined(GPIO_USART_ROUTEEN_RTSPEN))
+	(!defined(CONFIG_SOC_GECKO_HAS_INDIVIDUAL_PIN_LOCATION))
 #error "Driver not supporting hardware flow control for this SOC"
 #endif
 

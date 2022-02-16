@@ -49,7 +49,7 @@
 
 
 /* C++11 has static_assert built in */
-#if defined(__cplusplus) && (__cplusplus >= 201103L)
+#ifdef __cplusplus
 #define BUILD_ASSERT(EXPR, MSG...) static_assert(EXPR, "" MSG)
 
 /*
@@ -61,12 +61,6 @@
 #define BUILD_ASSERT(EXPR, MSG...) _Static_assert(EXPR, "" MSG)
 #else
 #define BUILD_ASSERT(EXPR, MSG...)
-#endif
-
-#ifdef __cplusplus
-#define ZRESTRICT __restrict
-#else
-#define ZRESTRICT restrict
 #endif
 
 #include <toolchain/common.h>
@@ -295,8 +289,7 @@ do {                                                                    \
 #if defined(_ASMLANGUAGE)
 
 #if defined(CONFIG_ARM) || defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) \
-	|| defined(CONFIG_XTENSA) || defined(CONFIG_ARM64) \
-	|| defined(CONFIG_MIPS)
+	|| defined(CONFIG_XTENSA) || defined(CONFIG_ARM64)
 #define GTEXT(sym) .global sym; .type sym, %function
 #define GDATA(sym) .global sym; .type sym, %object
 #define WTEXT(sym) .weak sym; .type sym, %function
@@ -477,8 +470,7 @@ do {                                                                    \
 		"\n\t.equ\t" #name "," #value       \
 		"\n\t.type\t" #name ",@object")
 
-#elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) || \
-	defined(CONFIG_XTENSA) || defined(CONFIG_MIPS)
+#elif defined(CONFIG_NIOS2) || defined(CONFIG_RISCV) || defined(CONFIG_XTENSA)
 
 /* No special prefixes necessary for constants in this arch AFAICT */
 #define GEN_ABSOLUTE_SYM(name, value)		\

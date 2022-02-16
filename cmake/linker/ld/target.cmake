@@ -32,10 +32,16 @@ macro(configure_linker_script linker_script_gen linker_pass_define)
   set(extra_dependencies ${ARGN})
 
   if(CONFIG_CMAKE_LINKER_GENERATOR)
+    if("${linker_pass_define}" STREQUAL "-DLINKER_ZEPHYR_PREBUILT")
+      set(PASS 1)
+    elseif("${linker_pass_define}" STREQUAL "-DLINKER_ZEPHYR_FINAL;-DLINKER_PASS2")
+      set(PASS 2)
+    endif()
+
     add_custom_command(
       OUTPUT ${linker_script_gen}
       COMMAND ${CMAKE_COMMAND}
-        -DPASS="${linker_pass_define}"
+        -DPASS=${PASS}
         -DFORMAT="$<TARGET_PROPERTY:linker,FORMAT>"
         -DENTRY="$<TARGET_PROPERTY:linker,ENTRY>"
         -DMEMORY_REGIONS="$<TARGET_PROPERTY:linker,MEMORY_REGIONS>"
@@ -47,13 +53,13 @@ macro(configure_linker_script linker_script_gen linker_pass_define)
         -P ${ZEPHYR_BASE}/cmake/linker/ld/ld_script.cmake
       )
   else()
-    set(template_script_defines ${linker_pass_define})
-    list(TRANSFORM template_script_defines PREPEND "-D")
-
-    # Only Ninja and Makefile generators support DEPFILE.
-    if((CMAKE_GENERATOR STREQUAL "Ninja")
-       OR (CMAKE_GENERATOR MATCHES "Makefiles")
-    )
+    # Different generators deal with depfiles differently.
+    if(CMAKE_GENERATOR STREQUAL "Unix Makefiles")
+      # Note that the IMPLICIT_DEPENDS option is currently supported only
+      # for Makefile generators and will be ignored by other generators.
+      set(linker_script_dep IMPLICIT_DEPENDS C ${LINKER_SCRIPT})
+    elseif(CMAKE_GENERATOR STREQUAL "Ninja")
+      # Using DEPFILE with other generators than Ninja is an error.
       set(linker_script_dep DEPFILE ${PROJECT_BINARY_DIR}/${linker_script_gen}.dep)
     else()
       # TODO: How would the linker script dependencies work for non-linker
@@ -64,6 +70,7 @@ macro(configure_linker_script linker_script_gen linker_pass_define)
     endif()
 
     zephyr_get_include_directories_for_lang(C current_includes)
+    get_filename_component(base_name ${CMAKE_CURRENT_BINARY_DIR} NAME)
     get_property(current_defines GLOBAL PROPERTY PROPERTY_LINKER_SCRIPT_DEFINES)
 
     add_custom_command(
@@ -77,13 +84,13 @@ macro(configure_linker_script linker_script_gen linker_pass_define)
       COMMAND ${CMAKE_C_COMPILER}
       -x assembler-with-cpp
       ${NOSYSDEF_CFLAG}
-      -MD -MF ${linker_script_gen}.dep -MT ${linker_script_gen}
+      -MD -MF ${linker_script_gen}.dep -MT ${base_name}/${linker_script_gen}
       -D_LINKER
       -D_ASMLANGUAGE
       -imacros ${AUTOCONF_H}
       ${current_includes}
       ${current_defines}
-      ${template_script_defines}
+      ${linker_pass_define}
       -E ${LINKER_SCRIPT}
       -P # Prevent generation of debug `#line' directives.
       -o ${linker_script_gen}

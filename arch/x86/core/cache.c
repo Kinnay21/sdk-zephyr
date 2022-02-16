@@ -26,6 +26,8 @@
  * both is optimal.
  *
  * The cache line size is specified via the d-cache-line-size DTS property.
+ *
+ * @return N/A
  */
 static void arch_dcache_flush(void *start_addr, size_t size)
 {

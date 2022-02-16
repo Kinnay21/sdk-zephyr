@@ -573,7 +573,6 @@ void test_condvar_usecase_broadcast(void)
 /*test case main entry*/
 void test_main(void)
 {
-#ifdef CONFIG_USERSPACE
 	k_thread_access_grant(k_current_get(), &test_mutex, &condvar_tid, &condvar_wake_tid,
 				&simple_condvar, &stack_1, &condvar_wake_stack);
 
@@ -585,8 +584,6 @@ void test_main(void)
 				      &multiple_condvar[i],
 				      &multiple_wake_stack[i]);
 	}
-#endif
-
 	ztest_test_suite(test_condvar,
 			 ztest_user_unit_test(test_condvar_wait_forever_wake),
 			 ztest_user_unit_test(test_condvar_wait_timeout_wake),

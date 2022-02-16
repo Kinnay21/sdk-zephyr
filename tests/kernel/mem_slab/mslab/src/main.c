@@ -54,6 +54,7 @@ K_MEM_SLAB_DEFINE(map_lgblks, 1024, NUMBLOCKS, 4);
  * SEM_REGRESDONE and SEM_HELPERDONE to synchronize between different parts
  * of the test.
  *
+ * @return  N/A
  */
 
 void helper_thread(void)
@@ -121,6 +122,7 @@ void helper_thread(void)
  *
  * @param p    pointer to pointer of allocated blocks
  *
+ * @return  TC_PASS, TC_FAIL
  */
 
 void test_slab_get_all_blocks(void **p)
@@ -163,6 +165,7 @@ void test_slab_get_all_blocks(void **p)
  *
  * @param p    pointer to pointer of allocated blocks
  *
+ * @return  TC_PASS, TC_FAIL
  */
 
 void test_slab_free_all_blocks(void **p)

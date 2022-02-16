@@ -77,19 +77,6 @@ extern "C" {
 
 /**@} */
 
-/**@defgroup CBPRINTF_MUST_RUNTIME_PACKAGE_FLAGS Package flags.
- * @{
- */
-
-/** @brief Consider constant string pointers as pointing to fixed strings.
- *
- * When flag is set then const (w)char pointers arguments in the string does
- * not trigger runtime packaging.
- */
-#define CBPRINTF_MUST_RUNTIME_PACKAGE_CONST_CHAR BIT(0)
-
-/**@} */
-
 /** @brief Signature for a cbprintf callback function.
  *
  * This function expects two parameters:
@@ -109,27 +96,6 @@ extern "C" {
  */
 typedef int (*cbprintf_cb)(/* int c, void *ctx */);
 
-/** @brief Signature for a external formatter function identical to cbvprintf.
- *
- * This function expects the following parameters:
- *
- * @param out the function used to emit each generated character.
- *
- * @param ctx a pointer to an object that provides context for the
- * external formatter.
- *
- * @param fmt a standard ISO C format string with characters and
- * conversion specifications.
- *
- * @param ap captured stack arguments corresponding to the conversion
- * specifications found within @p fmt.
- *
- * @return vprintf like return values: the number of characters printed,
- * or a negative error value returned from external formatter.
- */
-typedef int (*cbvprintf_exteral_formatter_func)(cbprintf_cb out, void *ctx,
-						const char *fmt, va_list ap);
-
 /** @brief Determine if string must be packaged in run time.
  *
  * Static packaging can be applied if size of the package can be determined
@@ -137,22 +103,17 @@ typedef int (*cbvprintf_exteral_formatter_func)(cbprintf_cb out, void *ctx,
  * if there are no string arguments which might be copied into package body if
  * they are considered transient.
  *
- * @note By default any char pointers are considered to be pointing at transient
- * strings. This can be narrowed down to non const pointers by using
- * @ref CBPRINTF_MUST_RUNTIME_PACKAGE_CONST_CHAR.
- *
  * @param skip number of read only string arguments in the parameter list. It
  * shall be non-zero if there are known read only string arguments present
  * in the string (e.g. function name prefix in the log message).
  *
  * @param ... String with arguments.
- * @param flags option flags. See @ref CBPRINTF_MUST_RUNTIME_PACKAGE_FLAGS.
  *
  * @retval 1 if string must be packaged in run time.
  * @retval 0 string can be statically packaged.
  */
-#define CBPRINTF_MUST_RUNTIME_PACKAGE(skip, flags, ... /* fmt, ... */) \
-	Z_CBPRINTF_MUST_RUNTIME_PACKAGE(skip, flags, __VA_ARGS__)
+#define CBPRINTF_MUST_RUNTIME_PACKAGE(skip, ... /* fmt, ... */) \
+	Z_CBPRINTF_MUST_RUNTIME_PACKAGE(skip, __VA_ARGS__)
 
 /** @brief Statically package string.
  *
@@ -307,14 +268,11 @@ int cbprintf_fsc_package(void *in_packaged,
 			 size_t len);
 
 /** @brief Generate the output for a previously captured format
- * operation using an external formatter.
+ * operation.
  *
  * @param out the function used to emit each generated character.
  *
- * @param formatter external formatter function.
- *
- * @param ctx a pointer to an object that provides context for the
- * external formatter.
+ * @param ctx context provided when invoking out
  *
  * @param packaged the data required to generate the formatted output, as
  * captured by cbprintf_package() or cbvprintf_package(). The alignment
@@ -323,13 +281,12 @@ int cbprintf_fsc_package(void *in_packaged,
  * @note Memory indicated by @p packaged will be modified in a non-destructive
  * way, meaning that it could still be reused with this function again.
  *
- * @return printf like return values: the number of characters printed,
- * or a negative error value returned from external formatter.
+ * @return the number of characters printed, or a negative error value
+ * returned from invoking @p out.
  */
-int cbpprintf_external(cbprintf_cb out,
-		       cbvprintf_exteral_formatter_func formatter,
-		       void *ctx,
-		       void *packaged);
+int cbpprintf(cbprintf_cb out,
+	      void *ctx,
+	      void *packaged);
 
 /** @brief *printf-like output through a callback.
  *
@@ -386,29 +343,6 @@ int cbprintf(cbprintf_cb out, void *ctx, const char *format, ...);
  * returned from invoking @p out.
  */
 int cbvprintf(cbprintf_cb out, void *ctx, const char *format, va_list ap);
-
-/** @brief Generate the output for a previously captured format
- * operation.
- *
- * @param out the function used to emit each generated character.
- *
- * @param ctx context provided when invoking out
- *
- * @param packaged the data required to generate the formatted output, as
- * captured by cbprintf_package() or cbvprintf_package(). The alignment
- * requirement on this data is the same as when it was initially created.
- *
- * @note Memory indicated by @p packaged will be modified in a non-destructive
- * way, meaning that it could still be reused with this function again.
- *
- * @return the number of characters printed, or a negative error value
- * returned from invoking @p out.
- */
-static inline
-int cbpprintf(cbprintf_cb out, void *ctx, void *packaged)
-{
-	return cbpprintf_external(out, cbvprintf, ctx, packaged);
-}
 
 #ifdef CONFIG_CBPRINTF_LIBC_SUBSTS
 

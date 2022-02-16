@@ -5,6 +5,6 @@ arch: xtensa
 toolchain:
   - zephyr
 testing:
-  ignore_tags:
-     - net
-     - bluetooth
+  only_tags:
+     - kernel
+     - sof

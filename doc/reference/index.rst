@@ -4,14 +4,12 @@ API Reference
 #############
 
 .. toctree::
-   :titlesonly:
-   :maxdepth: 2
+   :maxdepth: 1
 
    api/index.rst
    audio/index.rst
    misc/notify.rst
    bluetooth/index.rst
-   canbus/index.rst
    crypto/index.rst
    devicetree/index.rst
    drivers/index.rst
@@ -29,8 +27,7 @@ API Reference
    modbus/index.rst
    networking/index.rst
    peripherals/index.rst
-   pinctrl/index.rst
-   pm/index.rst
+   power_management/index.rst
    random/index.rst
    resource_management/index.rst
    shell/index.rst

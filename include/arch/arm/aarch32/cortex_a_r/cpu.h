@@ -12,9 +12,9 @@
 #endif
 
 /*
- * SCTLR register bit assignments
+ * SCTRL register bit assignments
  */
-#define SCTLR_MPU_ENABLE	(1 << 0)
+#define SCTRL_MPU_ENABLE	(1 << 0)
 
 #define MODE_USR	0x10
 #define MODE_FIQ	0x11

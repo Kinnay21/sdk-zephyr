@@ -39,6 +39,7 @@ static inline void z_arm64_bss_zero(void)
  *
  * This routine prepares for the execution of and runs C code.
  *
+ * @return N/A
  */
 void z_arm64_prep_c(void)
 {

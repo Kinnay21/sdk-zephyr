@@ -15,7 +15,7 @@ if SHELL
 module = SHELL
 module-str = Shell
 source "subsys/logging/Kconfig.template.log_config"
-source "subsys/shell/backends/Kconfig.backends"
+source "subsys/shell/Kconfig.backends"
 
 config SHELL_MINIMAL
 	bool "Default config to reduce flash and memory requirements"
@@ -138,13 +138,10 @@ config SHELL_VT100_COLORS
 	  If enabled VT100 colors are used in shell (e.g. print errors in red).
 
 config SHELL_GETOPT
-	bool "Enable threadsafe getopt support in shell"
+	bool "Enable getopt support"
 	select GETOPT
 	help
-	  This config creates a separate getopt_state for the shell instance.
-	  It ensures that using getopt with shell is thread safe.
-	  When more threads are using getopt please call getopt_state_get to
-	  get getopt state of the shell thread.
+	  Enables getopt support in the shell.
 
 config SHELL_METAKEYS
 	bool "Enable metakeys"
@@ -227,7 +224,7 @@ config SHELL_CMD_ROOT
 
 config SHELL_LOG_BACKEND
 	bool "Enable shell log backend"
-	depends on LOG && !LOG_MODE_MINIMAL
+	depends on LOG && !LOG_MINIMAL
 	default y if LOG
 	help
 	  When enabled, backend will use the shell for logging.

@@ -6,8 +6,3 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(hello_world)
 
 target_sources(app PRIVATE src/main.c)
-
-zephyr_library_sources_ifdef(
-  CONFIG_DEBUG_COREDUMP_BACKEND_OTHER
-  src/coredump_backend_empty.c
-  )

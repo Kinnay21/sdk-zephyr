@@ -355,8 +355,8 @@ struct mqtt_sec_config {
 	 */
 	const char *hostname;
 
-	/** Indicates the preference for copying certificates to the heap. */
-	int cert_nocopy;
+	/** Indicates the preference for enabling TLS session caching. */
+	int session_cache;
 };
 
 /** @brief MQTT transport type. */

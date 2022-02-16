@@ -294,8 +294,10 @@ int gpio_emul_input_set_masked_pend(const struct device *port, gpio_port_pins_t 
 	}
 
 	if (~config->common.port_pin_mask & mask) {
-		LOG_ERR("Pin not supported port_pin_mask=%x mask=%x",
-			config->common.port_pin_mask, mask);
+		return -EINVAL;
+	}
+
+	if (values & ~mask) {
 		return -EINVAL;
 	}
 
@@ -303,15 +305,13 @@ int gpio_emul_input_set_masked_pend(const struct device *port, gpio_port_pins_t 
 
 	input_mask = get_input_pins(port);
 	if (~input_mask & mask) {
-		LOG_ERR("Not input pin input_mask=%x mask=%x", input_mask,
-			mask);
 		ret = -EINVAL;
 		goto unlock;
 	}
 
 	prev_values = drv_data->input_vals;
 	drv_data->input_vals &= ~mask;
-	drv_data->input_vals |= values & mask;
+	drv_data->input_vals |= values;
 	values = drv_data->input_vals;
 
 	if (pend) {
@@ -392,7 +392,6 @@ static int gpio_emul_pin_configure(const struct device *port, gpio_pin_t pin,
 		(struct gpio_emul_data *)port->data;
 	const struct gpio_emul_config *config =
 		(const struct gpio_emul_config *)port->config;
-	int rv;
 
 	if (flags & GPIO_OPEN_DRAIN) {
 		return -ENOTSUP;
@@ -413,30 +412,20 @@ static int gpio_emul_pin_configure(const struct device *port, gpio_pin_t pin,
 			drv_data->output_vals &= ~BIT(pin);
 			if (flags & GPIO_INPUT) {
 				/* for push-pull mode to generate interrupts */
-				rv = gpio_emul_input_set_masked_pend(
-					port, BIT(pin), drv_data->output_vals,
-					false);
-				__ASSERT_NO_MSG(rv == 0);
+				gpio_emul_input_set_masked_pend(port, BIT(pin), drv_data->output_vals, false);
 			}
 		} else if (flags & GPIO_OUTPUT_INIT_HIGH) {
 			drv_data->output_vals |= BIT(pin);
 			if (flags & GPIO_INPUT) {
 				/* for push-pull mode to generate interrupts */
-				rv = gpio_emul_input_set_masked_pend(
-					port, BIT(pin), drv_data->output_vals,
-					false);
-				__ASSERT_NO_MSG(rv == 0);
+				gpio_emul_input_set_masked_pend(port, BIT(pin), drv_data->output_vals, false);
 			}
 		}
 	} else if (flags & GPIO_INPUT) {
 		if (flags & GPIO_PULL_UP) {
-			rv = gpio_emul_input_set_masked_pend(port, BIT(pin), BIT(pin),
-				false);
-			__ASSERT_NO_MSG(rv == 0);
+			gpio_emul_input_set_masked_pend(port, BIT(pin), BIT(pin), false);
 		} else if (flags & GPIO_PULL_DOWN) {
-			rv = gpio_emul_input_set_masked_pend(
-				port, BIT(pin), 0, false);
-			__ASSERT_NO_MSG(rv == 0);
+			gpio_emul_input_set_masked_pend(port, BIT(pin), 0, false);
 		}
 	}
 
@@ -470,22 +459,18 @@ static int gpio_emul_port_set_masked_raw(const struct device *port,
 	gpio_port_pins_t prev_values;
 	struct gpio_emul_data *drv_data =
 		(struct gpio_emul_data *)port->data;
-	int rv;
 
 	k_mutex_lock(&drv_data->mu, K_FOREVER);
 	output_mask = get_output_pins(port);
 	mask &= output_mask;
 	prev_values = drv_data->output_vals;
 	prev_values &= output_mask;
-	values &= mask;
+	values &= output_mask;
 	drv_data->output_vals &= ~mask;
 	drv_data->output_vals |= values;
 	/* in push-pull, set input values & fire interrupts */
-	rv = gpio_emul_input_set_masked(port, mask & get_input_pins(port),
-		drv_data->output_vals);
+	gpio_emul_input_set_masked(port, mask & get_input_pins(port), drv_data->output_vals);
 	k_mutex_unlock(&drv_data->mu);
-	__ASSERT_NO_MSG(rv == 0);
-
 	/* for output-wiring, so the user can take action based on ouput */
 	if (prev_values ^ values) {
 		gpio_fire_callbacks(&drv_data->callbacks, port, mask & ~get_input_pins(port));
@@ -499,16 +484,12 @@ static int gpio_emul_port_set_bits_raw(const struct device *port,
 {
 	struct gpio_emul_data *drv_data =
 		(struct gpio_emul_data *)port->data;
-	int rv;
 
 	k_mutex_lock(&drv_data->mu, K_FOREVER);
 	pins &= get_output_pins(port);
 	drv_data->output_vals |= pins;
 	/* in push-pull, set input values & fire interrupts */
-	rv = gpio_emul_input_set_masked(port, pins & get_input_pins(port),
-		drv_data->output_vals);
-	__ASSERT_NO_MSG(rv == 0);
-
+	gpio_emul_input_set_masked(port, pins & get_input_pins(port), drv_data->output_vals);
 	k_mutex_unlock(&drv_data->mu);
 	/* for output-wiring, so the user can take action based on ouput */
 	gpio_fire_callbacks(&drv_data->callbacks, port, pins & ~get_input_pins(port));
@@ -521,15 +502,13 @@ static int gpio_emul_port_clear_bits_raw(const struct device *port,
 {
 	struct gpio_emul_data *drv_data =
 		(struct gpio_emul_data *)port->data;
-	int rv;
 
 	k_mutex_lock(&drv_data->mu, K_FOREVER);
 	pins &= get_output_pins(port);
 	drv_data->output_vals &= ~pins;
 	/* in push-pull, set input values & fire interrupts */
-	rv = gpio_emul_input_set_masked(port, pins & get_input_pins(port), drv_data->output_vals);
+	gpio_emul_input_set_masked(port, pins & get_input_pins(port), drv_data->output_vals);
 	k_mutex_unlock(&drv_data->mu);
-	__ASSERT_NO_MSG(rv == 0);
 	/* for output-wiring, so the user can take action based on ouput */
 	gpio_fire_callbacks(&drv_data->callbacks, port, pins & ~get_input_pins(port));
 
@@ -540,15 +519,12 @@ static int gpio_emul_port_toggle_bits(const struct device *port, gpio_port_pins_
 {
 	struct gpio_emul_data *drv_data =
 		(struct gpio_emul_data *)port->data;
-	int rv;
 
 	k_mutex_lock(&drv_data->mu, K_FOREVER);
 	drv_data->output_vals ^= (pins & get_output_pins(port));
 	/* in push-pull, set input values but do not fire interrupts (yet) */
-	rv = gpio_emul_input_set_masked_pend(port, pins & get_input_pins(port),
-		drv_data->output_vals, false);
+	gpio_emul_input_set_masked_pend(port, pins & get_input_pins(port), drv_data->output_vals, false);
 	k_mutex_unlock(&drv_data->mu);
-	__ASSERT_NO_MSG(rv == 0);
 	/* for output-wiring, so the user can take action based on ouput */
 	gpio_fire_callbacks(&drv_data->callbacks, port, pins);
 
@@ -688,14 +664,16 @@ static int gpio_emul_init(const struct device *dev)
 }
 
 #ifdef CONFIG_PM_DEVICE
-static int gpio_emul_pm_device_pm_action(const struct device *dev,
-					 enum pm_device_action action)
+static int gpio_emul_pm_device_ctrl(const struct device *dev,
+		enum pm_device_action action)
 {
 	ARG_UNUSED(dev);
 	ARG_UNUSED(action);
 
 	return 0;
 }
+#else
+#define gpio_emul_pm_device_ctrl NULL
 #endif
 
 /*
@@ -731,13 +709,11 @@ static int gpio_emul_pm_device_pm_action(const struct device *dev,
 		.flags = gpio_emul_flags_##_num,			\
 	};								\
 									\
-	PM_DEVICE_DT_INST_DEFINE(_num, gpio_emul_pm_device_pm_action);	\
-									\
 	DEVICE_DT_INST_DEFINE(_num, gpio_emul_init,			\
-			    PM_DEVICE_DT_INST_GET(_num),		\
+			    gpio_emul_pm_device_ctrl,			\
 			    &gpio_emul_data_##_num,			\
 			    &gpio_emul_config_##_num, POST_KERNEL,	\
-			    CONFIG_GPIO_INIT_PRIORITY,			\
+			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &gpio_emul_driver)
 
 DT_INST_FOREACH_STATUS_OKAY(DEFINE_GPIO_EMUL);

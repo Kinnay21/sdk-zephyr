@@ -10,7 +10,6 @@
 #include <kernel.h>
 #include <kernel_structs.h>
 #include <arch/cpu.h>
-#include <pm/device.h>
 #include <zephyr/types.h>
 #include <string.h>
 #include <sys/__assert.h>
@@ -183,6 +182,7 @@ void z_loapic_enable(unsigned char cpu_number)
 }
 
 /**
+ *
  * @brief Dummy initialization function.
  *
  * The local APIC is initialized via z_loapic_enable() long before the
@@ -203,9 +203,12 @@ uint32_t z_loapic_irq_base(void)
 }
 
 /**
+ *
  * @brief Set the vector field in the specified RTE
  *
  * This associates an IRQ with the desired vector in the IDT.
+ *
+ * @return N/A
  */
 __boot_func
 void z_loapic_int_vec_set(unsigned int irq, /* IRQ number of the interrupt */
@@ -237,11 +240,14 @@ void z_loapic_int_vec_set(unsigned int irq, /* IRQ number of the interrupt */
 }
 
 /**
+ *
  * @brief Enable an individual LOAPIC interrupt (IRQ)
  *
  * @param irq the IRQ number of the interrupt
  *
  * This routine clears the interrupt mask bit in the LVT for the specified IRQ
+ *
+ * @return N/A
  */
 __pinned_func
 void z_loapic_irq_enable(unsigned int irq)
@@ -263,11 +269,14 @@ void z_loapic_irq_enable(unsigned int irq)
 }
 
 /**
+ *
  * @brief Disable an individual LOAPIC interrupt (IRQ)
  *
  * @param irq the IRQ number of the interrupt
  *
  * This routine clears the interrupt mask bit in the LVT for the specified IRQ
+ *
+ * @return N/A
  */
 __pinned_func
 void z_loapic_irq_disable(unsigned int irq)
@@ -399,8 +408,8 @@ int loapic_resume(const struct device *port)
 * the *context may include IN data or/and OUT data
 */
 __pinned_func
-static int loapic_pm_action(const struct device *dev,
-			    enum pm_device_action action)
+static int loapic_device_ctrl(const struct device *dev,
+			      enum pm_device_action action)
 {
 	int ret = 0;
 
@@ -417,12 +426,13 @@ static int loapic_pm_action(const struct device *dev,
 
 	return ret;
 }
-#endif /* CONFIG_PM_DEVICE */
 
-PM_DEVICE_DEFINE(loapic, loapic_pm_action);
+SYS_DEVICE_DEFINE("loapic", loapic_init, loapic_device_ctrl, PRE_KERNEL_1,
+		  CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+#else
+SYS_INIT(loapic_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+#endif   /* CONFIG_PM_DEVICE */
 
-DEVICE_DEFINE(loapic, "loapic", loapic_init, PM_DEVICE_GET(loapic), NULL, NULL,
-	      PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, NULL);
 
 #if CONFIG_LOAPIC_SPURIOUS_VECTOR
 extern void z_loapic_spurious_handler(void);

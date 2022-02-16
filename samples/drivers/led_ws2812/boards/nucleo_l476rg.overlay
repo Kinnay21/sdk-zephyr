@@ -14,7 +14,6 @@
 		/* SPI */
 		reg = <0>; /* ignored, but necessary for SPI bindings */
 		spi-max-frequency = <4000000>;
-		frame-format = <32768>; /* SPI_FRAME_FORMAT_TI */
 
 		/* WS2812 */
 		chain-length = <16>; /* arbitrary; change at will */

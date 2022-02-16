@@ -43,8 +43,8 @@ This development kit has the following features:
 * :abbr:`USB (Universal Serial Bus)`
 * :abbr:`WDT (Watchdog Timer)`
 
-.. figure:: img/bl5340_dvk_top.png
-     :width: 340px
+.. figure:: img/bl5340_dvk_front.jpg
+     :width: 800px
      :align: center
      :alt: BL5340 DVK
 
@@ -137,7 +137,7 @@ hardware features:
 | WDT       | on-chip    | watchdog             |
 +-----------+------------+----------------------+
 
-Other hardware features have not been enabled yet for this board.
+Other hardware features are not supported by the Zephyr kernel.
 See `Nordic Semiconductor Infocenter`_
 for a complete list of hardware features.
 

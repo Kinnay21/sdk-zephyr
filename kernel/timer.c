@@ -19,6 +19,8 @@ static struct k_spinlock lock;
  * @brief Handle expiration of a kernel timer object.
  *
  * @param t  Timeout used by the timer.
+ *
+ * @return N/A
  */
 void z_timer_expiration_handler(struct _timeout *t)
 {
@@ -41,10 +43,7 @@ void z_timer_expiration_handler(struct _timeout *t)
 
 	/* invoke timer expiry function */
 	if (timer->expiry_fn != NULL) {
-		/* Unlock for user handler. */
-		k_spin_unlock(&lock, key);
 		timer->expiry_fn(timer);
-		key = k_spin_lock(&lock);
 	}
 
 	if (!IS_ENABLED(CONFIG_MULTITHREADING)) {

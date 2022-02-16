@@ -60,6 +60,9 @@ struct cypress_psoc6_data {
 	void *irq_cb_data;			/* Interrupt Callback Arg */
 };
 
+#define DEV_DATA(dev) \
+	((struct cypress_psoc6_data *const)(dev)->data)
+
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
 /* Populate configuration structure */
@@ -285,7 +288,7 @@ static void uart_psoc6_irq_callback_set(const struct device *dev,
 					uart_irq_callback_user_data_t cb,
 					void *cb_data)
 {
-	struct cypress_psoc6_data *const dev_data = dev->data;
+	struct cypress_psoc6_data *const dev_data = DEV_DATA(dev);
 
 	dev_data->irq_cb = cb;
 	dev_data->irq_cb_data = cb_data;
@@ -293,7 +296,7 @@ static void uart_psoc6_irq_callback_set(const struct device *dev,
 
 static void uart_psoc6_isr(const struct device *dev)
 {
-	struct cypress_psoc6_data *const dev_data = dev->data;
+	struct cypress_psoc6_data *const dev_data = DEV_DATA(dev);
 
 	if (dev_data->irq_cb) {
 		dev_data->irq_cb(dev, dev_data->irq_cb_data);

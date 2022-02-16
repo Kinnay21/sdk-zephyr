@@ -259,19 +259,6 @@ extern "C" {
  * use the default drive strength.
  */
 #define GPIO_DS_ALT_HIGH (0x1U << GPIO_DS_HIGH_POS)
-
-/** Combined default drive strength.
- */
-#define GPIO_DS_DFLT (GPIO_DS_DFLT_LOW | GPIO_DS_DFLT_HIGH)
-
-/** Combined alternative drive strength.
- */
-#define GPIO_DS_ALT (GPIO_DS_ALT_LOW | GPIO_DS_ALT_HIGH)
-
-/** @cond INTERNAL_HIDDEN */
-#define GPIO_DS_MASK (GPIO_DS_LOW_MASK | GPIO_DS_HIGH_MASK)
-/** @endcond */
-
 /** @} */
 
 /** @cond INTERNAL_HIDDEN */
@@ -325,23 +312,15 @@ typedef uint8_t gpio_dt_flags_t;
 typedef uint32_t gpio_flags_t;
 
 /**
- * @brief Container for GPIO pin information specified in devicetree
+ * @brief Provides a type to hold GPIO information specified in devicetree
  *
- * This type contains a pointer to a GPIO device, pin number for a pin
- * controlled by that device, and the subset of pin configuration
- * flags which may be given in devicetree.
- *
- * @see GPIO_DT_SPEC_GET_BY_IDX
- * @see GPIO_DT_SPEC_GET_BY_IDX_OR
- * @see GPIO_DT_SPEC_GET
- * @see GPIO_DT_SPEC_GET_OR
+ * This type is sufficient to hold a GPIO device pointer, pin number,
+ * and the subset of the flags used to control GPIO configuration
+ * which may be given in devicetree.
  */
 struct gpio_dt_spec {
-	/** GPIO device controlling the pin */
 	const struct device *port;
-	/** The pin's number on the device */
 	gpio_pin_t pin;
-	/** The pin's configuration flags as specified in devicetree */
 	gpio_dt_flags_t dt_flags;
 };
 

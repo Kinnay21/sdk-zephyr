@@ -72,7 +72,6 @@ static bool page_frames_initialized;
 #define COLOR(x)	do { } while (0)
 #endif
 
-/* LCOV_EXCL_START */
 static void page_frame_dump(struct z_page_frame *pf)
 {
 	if (z_page_frame_is_reserved(pf)) {
@@ -121,7 +120,6 @@ void z_page_frames_dump(void)
 		printk("\n");
 	}
 }
-/* LCOV_EXCL_STOP */
 
 #define VIRT_FOREACH(_base, _size, _pos) \
 	for (_pos = _base; \
@@ -181,8 +179,8 @@ void z_page_frames_dump(void)
  * Note that bit #0 is the highest address so that allocation is
  * done in reverse from highest address.
  */
-SYS_BITARRAY_DEFINE_STATIC(virt_region_bitmap,
-			   CONFIG_KERNEL_VM_SIZE / CONFIG_MMU_PAGE_SIZE);
+SYS_BITARRAY_DEFINE(virt_region_bitmap,
+		    CONFIG_KERNEL_VM_SIZE / CONFIG_MMU_PAGE_SIZE);
 
 static bool virt_region_inited;
 
@@ -228,6 +226,40 @@ static void virt_region_init(void)
 	virt_region_inited = true;
 }
 
+static void *virt_region_alloc(size_t size)
+{
+	uintptr_t dest_addr;
+	size_t offset;
+	size_t num_bits;
+	int ret;
+
+	if (unlikely(!virt_region_inited)) {
+		virt_region_init();
+	}
+
+	num_bits = size / CONFIG_MMU_PAGE_SIZE;
+	ret = sys_bitarray_alloc(&virt_region_bitmap, num_bits, &offset);
+	if (ret != 0) {
+		LOG_ERR("insufficient virtual address space (requested %zu)",
+			size);
+		return NULL;
+	}
+
+	/* Remember that bit #0 in bitmap corresponds to the highest
+	 * virtual address. So here we need to go downwards (backwards?)
+	 * to get the starting address of the allocated region.
+	 */
+	dest_addr = virt_from_bitmap_offset(offset, size);
+
+	/* Need to make sure this does not step into kernel memory */
+	if (dest_addr < POINTER_TO_UINT(Z_VIRT_REGION_START_ADDR)) {
+		(void)sys_bitarray_free(&virt_region_bitmap, size, offset);
+		return NULL;
+	}
+
+	return UINT_TO_POINTER(dest_addr);
+}
+
 static void virt_region_free(void *vaddr, size_t size)
 {
 	size_t offset, num_bits;
@@ -248,88 +280,6 @@ static void virt_region_free(void *vaddr, size_t size)
 	offset = virt_to_bitmap_offset(vaddr, size);
 	num_bits = size / CONFIG_MMU_PAGE_SIZE;
 	(void)sys_bitarray_free(&virt_region_bitmap, num_bits, offset);
-}
-
-static void *virt_region_alloc(size_t size, size_t align)
-{
-	uintptr_t dest_addr;
-	size_t alloc_size;
-	size_t offset;
-	size_t num_bits;
-	int ret;
-
-	if (unlikely(!virt_region_inited)) {
-		virt_region_init();
-	}
-
-	/* Possibly request more pages to ensure we can get an aligned virtual address */
-	num_bits = (size + align - CONFIG_MMU_PAGE_SIZE) / CONFIG_MMU_PAGE_SIZE;
-	alloc_size = num_bits * CONFIG_MMU_PAGE_SIZE;
-	ret = sys_bitarray_alloc(&virt_region_bitmap, num_bits, &offset);
-	if (ret != 0) {
-		LOG_ERR("insufficient virtual address space (requested %zu)",
-			size);
-		return NULL;
-	}
-
-	/* Remember that bit #0 in bitmap corresponds to the highest
-	 * virtual address. So here we need to go downwards (backwards?)
-	 * to get the starting address of the allocated region.
-	 */
-	dest_addr = virt_from_bitmap_offset(offset, alloc_size);
-
-	if (alloc_size > size) {
-		uintptr_t aligned_dest_addr = ROUND_UP(dest_addr, align);
-
-		/* Here is the memory organization when trying to get an aligned
-		 * virtual address:
-		 *
-		 * +--------------+ <- Z_VIRT_RAM_START
-		 * | Undefined VM |
-		 * +--------------+ <- Z_KERNEL_VIRT_START (often == Z_VIRT_RAM_START)
-		 * | Mapping for  |
-		 * | main kernel  |
-		 * | image        |
-		 * |		  |
-		 * |		  |
-		 * +--------------+ <- Z_FREE_VM_START
-		 * | ...          |
-		 * +==============+ <- dest_addr
-		 * | Unused       |
-		 * |..............| <- aligned_dest_addr
-		 * |              |
-		 * | Aligned      |
-		 * | Mapping      |
-		 * |              |
-		 * |..............| <- aligned_dest_addr + size
-		 * | Unused       |
-		 * +==============+ <- offset from Z_VIRT_RAM_END == dest_addr + alloc_size
-		 * | ...          |
-		 * +--------------+
-		 * | Mapping      |
-		 * +--------------+
-		 * | Reserved     |
-		 * +--------------+ <- Z_VIRT_RAM_END
-		 */
-
-		/* Free the two unused regions */
-		virt_region_free(UINT_TO_POINTER(dest_addr),
-				 aligned_dest_addr - dest_addr);
-		if (((dest_addr + alloc_size) - (aligned_dest_addr + size)) > 0) {
-			virt_region_free(UINT_TO_POINTER(aligned_dest_addr + size),
-					 (dest_addr + alloc_size) - (aligned_dest_addr + size));
-		}
-
-		dest_addr = aligned_dest_addr;
-	}
-
-	/* Need to make sure this does not step into kernel memory */
-	if (dest_addr < POINTER_TO_UINT(Z_VIRT_REGION_START_ADDR)) {
-		(void)sys_bitarray_free(&virt_region_bitmap, size, offset);
-		return NULL;
-	}
-
-	return UINT_TO_POINTER(dest_addr);
 }
 
 /*
@@ -380,10 +330,7 @@ static void free_page_frame_list_put(struct z_page_frame *pf)
 {
 	PF_ASSERT(pf, z_page_frame_is_available(pf),
 		 "unavailable page put on free list");
-	/* The structure is packed, which ensures that this is true */
-	void *node = pf;
-
-	sys_slist_append(&free_page_frame_list, node);
+	sys_slist_append(&free_page_frame_list, &pf->node);
 	z_free_page_count++;
 }
 
@@ -422,7 +369,6 @@ static void frame_mapped_set(struct z_page_frame *pf, void *addr)
 	pf->addr = addr;
 }
 
-/* LCOV_EXCL_START */
 /* Go through page frames to find the physical address mapped
  * by a virtual address.
  *
@@ -451,8 +397,6 @@ static int virt_to_page_frame(void *virt, uintptr_t *phys)
 
 	return ret;
 }
-/* LCOV_EXCL_STOP */
-
 __weak FUNC_ALIAS(virt_to_page_frame, arch_page_phys_get, int);
 
 #ifdef CONFIG_DEMAND_PAGING
@@ -548,7 +492,7 @@ void *k_mem_map(size_t size, uint32_t flags)
 	 */
 	total_size = size + CONFIG_MMU_PAGE_SIZE * 2;
 
-	dst = virt_region_alloc(total_size, CONFIG_MMU_PAGE_SIZE);
+	dst = virt_region_alloc(total_size);
 	if (dst == NULL) {
 		/* Address space has no free region */
 		goto out;
@@ -569,7 +513,7 @@ void *k_mem_map(size_t size, uint32_t flags)
 
 		if (ret != 0) {
 			/* TODO: call k_mem_unmap(dst, pos - dst)  when
-			 * implemented in #28990 and release any guard virtual
+			 * implmented in #28990 and release any guard virtual
 			 * page as well.
 			 */
 			dst = NULL;
@@ -694,23 +638,6 @@ size_t k_mem_free_get(void)
 	return ret * (size_t)CONFIG_MMU_PAGE_SIZE;
 }
 
-/* Get the default virtual region alignment, here the default MMU page size
- *
- * @param[in] phys Physical address of region to be mapped, aligned to MMU_PAGE_SIZE
- * @param[in] size Size of region to be mapped, aligned to MMU_PAGE_SIZE
- *
- * @retval alignment to apply on the virtual address of this region
- */
-static size_t virt_region_align(uintptr_t phys, size_t size)
-{
-	ARG_UNUSED(phys);
-	ARG_UNUSED(size);
-
-	return CONFIG_MMU_PAGE_SIZE;
-}
-
-__weak FUNC_ALIAS(virt_region_align, arch_virt_region_align, size_t);
-
 /* This may be called from arch early boot code before z_cstart() is invoked.
  * Data will be copied and BSS zeroed, but this must not rely on any
  * initialization functions being called prior to work correctly.
@@ -718,7 +645,7 @@ __weak FUNC_ALIAS(virt_region_align, arch_virt_region_align, size_t);
 void z_phys_map(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32_t flags)
 {
 	uintptr_t aligned_phys, addr_offset;
-	size_t aligned_size, align_boundary;
+	size_t aligned_size;
 	k_spinlock_key_t key;
 	uint8_t *dest_addr;
 
@@ -730,11 +657,9 @@ void z_phys_map(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32_t flags)
 		 "wraparound for physical address 0x%lx (size %zu)",
 		 aligned_phys, aligned_size);
 
-	align_boundary = arch_virt_region_align(aligned_phys, aligned_size);
-
 	key = k_spin_lock(&z_mm_lock);
 	/* Obtain an appropriately sized chunk of virtual memory */
-	dest_addr = virt_region_alloc(aligned_size, align_boundary);
+	dest_addr = virt_region_alloc(aligned_size);
 	if (!dest_addr) {
 		goto fail;
 	}

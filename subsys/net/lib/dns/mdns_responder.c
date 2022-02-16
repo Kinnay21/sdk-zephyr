@@ -25,7 +25,6 @@ LOG_MODULE_REGISTER(net_mdns_responder, CONFIG_MDNS_RESPONDER_LOG_LEVEL);
 #include <net/net_ip.h>
 #include <net/net_pkt.h>
 #include <net/dns_resolve.h>
-#include <net/igmp.h>
 
 #include "dns_sd.h"
 #include "dns_pack.h"
@@ -39,13 +38,10 @@ LOG_MODULE_REGISTER(net_mdns_responder, CONFIG_MDNS_RESPONDER_LOG_LEVEL);
 
 #if defined(CONFIG_NET_IPV4)
 static struct net_context *ipv4;
-static struct sockaddr_in local_addr4;
 #endif
 #if defined(CONFIG_NET_IPV6)
 static struct net_context *ipv6;
 #endif
-
-static struct net_mgmt_event_callback mgmt_cb;
 
 #define BUF_ALLOC_TIMEOUT K_MSEC(100)
 
@@ -80,22 +76,6 @@ static void create_ipv4_addr(struct sockaddr_in *addr)
 
 	/* Well known IPv4 224.0.0.251 address */
 	addr->sin_addr.s_addr = htonl(0xE00000FB);
-}
-
-static void mdns_iface_event_handler(struct net_mgmt_event_callback *cb,
-				     uint32_t mgmt_event, struct net_if *iface)
-
-{
-	if (mgmt_event == NET_EVENT_IF_UP) {
-#if defined(CONFIG_NET_IPV4)
-		int ret = net_ipv4_igmp_join(iface, &local_addr4.sin_addr);
-
-		if (ret < 0) {
-			NET_DBG("Cannot add IPv4 multicast address to iface %p",
-				iface);
-		}
-#endif /* defined(CONFIG_NET_IPV4) */
-	}
 }
 
 int setup_dst_addr(struct net_context *ctx, struct net_pkt *pkt,
@@ -272,7 +252,7 @@ static int send_response(struct net_context *ctx,
 		const struct in_addr *addr;
 
 		addr = net_if_ipv4_select_src_addr(net_pkt_iface(pkt),
-						   (struct in_addr *)ip_hdr->ipv4->src);
+						   &ip_hdr->ipv4->src);
 
 		ret = create_answer(ctx, query, qtype,
 				      sizeof(struct in_addr), (uint8_t *)addr);
@@ -283,7 +263,7 @@ static int send_response(struct net_context *ctx,
 		const struct in6_addr *addr;
 
 		addr = net_if_ipv6_select_src_addr(net_pkt_iface(pkt),
-						   (struct in6_addr *)ip_hdr->ipv6->src);
+						   &ip_hdr->ipv6->src);
 
 		ret = create_answer(ctx, query, qtype,
 				      sizeof(struct in6_addr), (uint8_t *)addr);
@@ -366,13 +346,13 @@ static void send_sd_response(struct net_context *ctx,
 	if (IS_ENABLED(CONFIG_NET_IPV4)) {
 		/* Look up the local IPv4 address */
 		addr4 = net_if_ipv4_select_src_addr(net_pkt_iface(pkt),
-						    (struct in_addr *)ip_hdr->ipv4->src);
+					   &ip_hdr->ipv4->src);
 	}
 
 	if (IS_ENABLED(CONFIG_NET_IPV6)) {
 		/* Look up the local IPv6 address */
 		addr6 = net_if_ipv6_select_src_addr(net_pkt_iface(pkt),
-						    (struct in6_addr *)ip_hdr->ipv6->src);
+					   &ip_hdr->ipv6->src);
 	}
 
 	ret = dns_sd_query_extract(dns_msg->msg,
@@ -601,10 +581,10 @@ static void setup_ipv6_addr(struct sockaddr_in6 *local_addr)
 static void iface_ipv4_cb(struct net_if *iface, void *user_data)
 {
 	struct in_addr *addr = user_data;
-	int ret;
+	struct net_if_mcast_addr *ifaddr;
 
-	ret = net_ipv4_igmp_join(iface, addr);
-	if (ret < 0) {
+	ifaddr = net_if_ipv4_maddr_add(iface, addr);
+	if (!ifaddr) {
 		NET_DBG("Cannot add IPv4 multicast address to iface %p",
 			iface);
 	}
@@ -650,12 +630,14 @@ ipv6_out:
 
 #if defined(CONFIG_NET_IPV4)
 	do {
-		setup_ipv4_addr(&local_addr4);
+		static struct sockaddr_in local_addr;
+
+		setup_ipv4_addr(&local_addr);
 
 		ipv4 = get_ctx(AF_INET);
 
-		ret = bind_ctx(ipv4, (struct sockaddr *)&local_addr4,
-			       sizeof(local_addr4));
+		ret = bind_ctx(ipv4, (struct sockaddr *)&local_addr,
+			       sizeof(local_addr));
 		if (ret < 0) {
 			net_context_put(ipv4);
 			goto ipv4_out;
@@ -682,11 +664,6 @@ ipv4_out:
 static int mdns_responder_init(const struct device *dev)
 {
 	ARG_UNUSED(dev);
-
-	net_mgmt_init_event_callback(&mgmt_cb, mdns_iface_event_handler,
-				     NET_EVENT_IF_UP);
-
-	net_mgmt_add_event_callback(&mgmt_cb);
 
 	return init_listener();
 }

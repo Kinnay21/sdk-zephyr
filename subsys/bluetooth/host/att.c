@@ -99,7 +99,7 @@ struct bt_att {
 	sys_slist_t		reqs;
 	struct k_fifo		tx_queue;
 #if CONFIG_BT_ATT_PREPARE_COUNT > 0
-	sys_slist_t		prep_queue;
+	struct k_fifo		prep_queue;
 #endif
 	/* Contains bt_att_chan instance(s) */
 	sys_slist_t		chans;
@@ -148,14 +148,6 @@ static int chan_send(struct bt_att_chan *chan, struct net_buf *buf,
 	hdr = (void *)buf->data;
 
 	BT_DBG("code 0x%02x", hdr->code);
-
-	if (IS_ENABLED(CONFIG_BT_EATT) && hdr->code == BT_ATT_OP_MTU_REQ &&
-	    chan->chan.tx.cid != BT_L2CAP_CID_ATT) {
-		/* The Exchange MTU sub-procedure shall only be supported on
-		 * the LE Fixed Channel Unenhanced ATT bearer
-		 */
-		return -ENOTSUP;
-	}
 
 	if (IS_ENABLED(CONFIG_BT_EATT) &&
 	    atomic_test_bit(chan->flags, ATT_ENHANCED)) {
@@ -259,7 +251,6 @@ static int chan_req_send(struct bt_att_chan *chan, struct bt_att_req *req)
 	if (err) {
 		/* We still have the ownership of the buffer */
 		req->buf = buf;
-		chan->req = NULL;
 	}
 
 	return err;
@@ -444,7 +435,7 @@ static inline bool att_chan_is_connected(struct bt_att_chan *chan)
 static int bt_att_chan_send(struct bt_att_chan *chan, struct net_buf *buf,
 			    bt_att_chan_sent_t cb)
 {
-	BT_DBG("chan %p flags %lu code 0x%02x", chan, atomic_get(chan->flags),
+	BT_DBG("chan %p flags %u code 0x%02x", chan, atomic_get(chan->flags),
 	       ((struct bt_att_hdr *)buf->data)->code);
 
 	return chan_send(chan, buf, cb);
@@ -1674,8 +1665,6 @@ static uint8_t write_cb(const struct bt_gatt_attr *attr, uint16_t handle,
 	/* Set command flag if not a request */
 	if (!data->req) {
 		flags |= BT_GATT_WRITE_FLAG_CMD;
-	} else if (data->req == BT_ATT_OP_EXEC_WRITE_REQ) {
-		flags |= BT_GATT_WRITE_FLAG_EXECUTE;
 	}
 
 	/* Write attribute value */
@@ -1846,7 +1835,7 @@ static uint8_t att_prep_write_rsp(struct bt_att_chan *chan, uint16_t handle,
 	BT_DBG("buf %p handle 0x%04x offset %u", data.buf, handle, offset);
 
 	/* Store buffer in the outstanding queue */
-	net_buf_slist_put(&chan->att->prep_queue, data.buf);
+	net_buf_put(&chan->att->prep_queue, data.buf);
 
 	/* Generate response */
 	data.buf = bt_att_create_pdu(conn, BT_ATT_OP_PREPARE_WRITE_RSP, 0);
@@ -1886,103 +1875,23 @@ static uint8_t att_prepare_write_req(struct bt_att_chan *chan, struct net_buf *b
 }
 
 #if CONFIG_BT_ATT_PREPARE_COUNT > 0
-static uint8_t exec_write_reassemble(uint16_t handle, uint16_t offset,
-				     sys_slist_t *list,
-				     struct net_buf_simple *buf)
-{
-	struct net_buf *entry, *next;
-	sys_snode_t *prev;
-
-	prev = NULL;
-	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(list, entry, next, node) {
-		struct bt_attr_data *tmp_data = net_buf_user_data(entry);
-
-		BT_DBG("entry %p handle 0x%04x, offset %u",
-			entry, tmp_data->handle, tmp_data->offset);
-
-		if (tmp_data->handle == handle) {
-			if (tmp_data->offset == 0) {
-				/* Multiple writes to the same handle can occur
-				 * in a prepare write queue. If the offset is 0,
-				 * that should mean that it's a new write to the
-				 * same handle, and we break to process the
-				 * first write.
-				 */
-
-				BT_DBG("tmp_data->offset == 0");
-				break;
-			}
-
-			if (tmp_data->offset != buf->len + offset) {
-				/* We require that the offset is increasing
-				 * properly to avoid badly reassembled buffers
-				 */
-
-				BT_DBG("Bad offset %u (%u, %u)",
-					tmp_data->offset, buf->len, offset);
-
-				return BT_ATT_ERR_INVALID_OFFSET;
-			}
-
-			if (buf->len + entry->len > buf->size) {
-				return BT_ATT_ERR_INVALID_ATTRIBUTE_LEN;
-			}
-
-			net_buf_simple_add_mem(buf, entry->data, entry->len);
-			sys_slist_remove(list, prev, &entry->node);
-			net_buf_unref(entry);
-		} else {
-			prev = &entry->node;
-		}
-	}
-
-	return BT_ATT_ERR_SUCCESS;
-}
-
 static uint8_t att_exec_write_rsp(struct bt_att_chan *chan, uint8_t flags)
 {
 	struct bt_conn *conn = chan->chan.chan.conn;
 	struct net_buf *buf;
 	uint8_t err = 0U;
 
-	/* The following code will iterate on all prepare writes in the
-	 * prep_queue, and reassemble those that share the same handle.
-	 * Once a handle has been ressembled, it is sent to the upper layers,
-	 * and the next handle is processed
-	 */
-	while (!sys_slist_is_empty(&chan->att->prep_queue)) {
-		struct bt_attr_data *data;
-		uint16_t handle;
+	while ((buf = net_buf_get(&chan->att->prep_queue, K_NO_WAIT))) {
+		struct bt_attr_data *data = net_buf_user_data(buf);
 
-		NET_BUF_SIMPLE_DEFINE_STATIC(reassembled_data,
-					     MIN(BT_ATT_MAX_ATTRIBUTE_LEN,
-						 CONFIG_BT_ATT_PREPARE_COUNT * BT_ATT_MTU));
-
-		buf = net_buf_slist_get(&chan->att->prep_queue);
-		data = net_buf_user_data(buf);
-		handle = data->handle;
-
-		BT_DBG("buf %p handle 0x%04x offset %u",
-		       buf, handle, data->offset);
-
-		net_buf_simple_reset(&reassembled_data);
-		net_buf_simple_add_mem(&reassembled_data, buf->data, buf->len);
-
-		err = exec_write_reassemble(handle, data->offset,
-					    &chan->att->prep_queue,
-					    &reassembled_data);
-		if (err != BT_ATT_ERR_SUCCESS) {
-			send_err_rsp(chan, BT_ATT_OP_EXEC_WRITE_REQ,
-				     handle, err);
-			return 0;
-		}
+		BT_DBG("buf %p handle 0x%04x offset %u", buf, data->handle,
+		       data->offset);
 
 		/* Just discard the data if an error was set */
 		if (!err && flags == BT_ATT_FLAG_EXEC) {
 			err = att_write_rsp(chan, BT_ATT_OP_EXEC_WRITE_REQ, 0,
-					    handle, data->offset,
-					    reassembled_data.data,
-					    reassembled_data.len);
+					    data->handle, data->offset,
+					    buf->data, buf->len);
 			if (err) {
 				/* Respond here since handle is set */
 				send_err_rsp(chan, BT_ATT_OP_EXEC_WRITE_REQ,
@@ -2531,8 +2440,7 @@ static int bt_att_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 
 	if (!handler) {
 		BT_WARN("Unhandled ATT code 0x%02x", hdr->code);
-		if (att_op_get_type(hdr->code) != ATT_COMMAND &&
-		    att_op_get_type(hdr->code) != ATT_INDICATION) {
+		if (att_op_get_type(hdr->code) != ATT_COMMAND) {
 			send_err_rsp(att_chan, hdr->code, 0,
 				     BT_ATT_ERR_NOT_SUPPORTED);
 		}
@@ -2617,11 +2525,12 @@ struct net_buf *bt_att_create_pdu(struct bt_conn *conn, uint8_t op, size_t len)
 
 static void att_reset(struct bt_att *att)
 {
+	struct bt_att_req *req, *tmp;
 	struct net_buf *buf;
 
 #if CONFIG_BT_ATT_PREPARE_COUNT > 0
 	/* Discard queued buffers */
-	while ((buf = net_buf_slist_get(&att->prep_queue))) {
+	while ((buf = net_buf_get(&att->prep_queue, K_NO_WAIT))) {
 		net_buf_unref(buf);
 	}
 #endif /* CONFIG_BT_ATT_PREPARE_COUNT > 0 */
@@ -2630,25 +2539,18 @@ static void att_reset(struct bt_att *att)
 		net_buf_unref(buf);
 	}
 
-	/* Notify pending requests */
-	while (!sys_slist_is_empty(&att->reqs)) {
-		struct bt_att_req *req;
-		sys_snode_t *node;
+	att->conn = NULL;
 
-		node = sys_slist_get_not_empty(&att->reqs);
-		req = CONTAINER_OF(node, struct bt_att_req, node);
+	/* Notify pending requests */
+	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&att->reqs, req, tmp, node) {
 		if (req->func) {
-			req->func(att->conn, BT_ATT_ERR_UNLIKELY, NULL, 0,
+			req->func(NULL, BT_ATT_ERR_UNLIKELY, NULL, 0,
 				  req->user_data);
 		}
 
 		bt_att_req_free(req);
 	}
 
-	/* FIXME: `att->conn` is not reference counted. Consider using `bt_conn_ref`
-	 * and `bt_conn_unref` to follow convention.
-	 */
-	att->conn = NULL;
 	k_mem_slab_free(&att_slab, (void **)&att);
 }
 
@@ -2675,8 +2577,7 @@ static void att_chan_detach(struct bt_att_chan *chan)
 
 static void att_timeout(struct k_work *work)
 {
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct bt_att_chan *chan = CONTAINER_OF(dwork, struct bt_att_chan,
+	struct bt_att_chan *chan = CONTAINER_OF(work, struct bt_att_chan,
 						timeout_work);
 
 	BT_ERR("ATT Timeout");
@@ -2704,13 +2605,13 @@ static struct bt_att_chan *att_get_fixed_chan(struct bt_conn *conn)
 
 static void att_chan_attach(struct bt_att *att, struct bt_att_chan *chan)
 {
-	BT_DBG("att %p chan %p flags %lu", att, chan, atomic_get(chan->flags));
+	BT_DBG("att %p chan %p flags %u", att, chan, atomic_get(chan->flags));
 
 	if (sys_slist_is_empty(&att->chans)) {
 		/* Init general queues when attaching the first channel */
 		k_fifo_init(&att->tx_queue);
 #if CONFIG_BT_ATT_PREPARE_COUNT > 0
-		sys_slist_init(&att->prep_queue);
+		k_fifo_init(&att->prep_queue);
 #endif
 	}
 
@@ -3124,13 +3025,6 @@ struct bt_att_req *bt_att_req_alloc(k_timeout_t timeout)
 {
 	struct bt_att_req *req = NULL;
 
-	if (k_current_get() == bt_recv_thread_id) {
-		/* No req will be fulfilled while blocking on the bt_recv thread.
-		 * Blocking would cause deadlock.
-		 */
-		timeout = K_NO_WAIT;
-	}
-
 	/* Reserve space for request */
 	if (k_mem_slab_alloc(&req_slab, (void **)&req, timeout)) {
 		BT_DBG("No space for req");
@@ -3245,30 +3139,4 @@ void bt_att_req_cancel(struct bt_conn *conn, struct bt_att_req *req)
 	sys_slist_find_and_remove(&att->reqs, &req->node);
 
 	bt_att_req_free(req);
-}
-
-struct bt_att_req *bt_att_find_req_by_user_data(struct bt_conn *conn, const void *user_data)
-{
-	struct bt_att *att;
-	struct bt_att_chan *chan;
-	struct bt_att_req *req;
-
-	att = att_get(conn);
-	if (!att) {
-		return NULL;
-	}
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&att->chans, chan, node) {
-		if (chan->req->user_data == user_data) {
-			return chan->req;
-		}
-	}
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&att->reqs, req, node) {
-		if (req->user_data == user_data) {
-			return req;
-		}
-	}
-
-	return NULL;
 }

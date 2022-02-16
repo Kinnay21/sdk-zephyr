@@ -13,10 +13,13 @@
 
 #include "uart_lpc11u6x.h"
 
+#define DEV_CFG(dev) ((dev)->config)
+#define DEV_DATA(dev) ((dev)->data)
+
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(uart0), okay)
 static int lpc11u6x_uart0_poll_in(const struct device *dev, unsigned char *c)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	if (!(cfg->uart0->lsr & LPC11U6X_UART0_LSR_RDR)) {
 		return -1;
@@ -28,7 +31,7 @@ static int lpc11u6x_uart0_poll_in(const struct device *dev, unsigned char *c)
 
 static void lpc11u6x_uart0_poll_out(const struct device *dev, unsigned char c)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	while (!(cfg->uart0->lsr & LPC11U6X_UART0_LSR_THRE)) {
 	}
@@ -37,7 +40,7 @@ static void lpc11u6x_uart0_poll_out(const struct device *dev, unsigned char c)
 
 static int lpc11u6x_uart0_err_check(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 	uint32_t lsr;
 	int ret = 0;
 
@@ -101,8 +104,8 @@ static void lpc11u6x_uart0_config_baudrate(const struct device *clk_drv,
 static int lpc11u6x_uart0_configure(const struct device *dev,
 				    const struct uart_config *cfg)
 {
-	const struct  lpc11u6x_uart0_config *dev_cfg = dev->config;
-	struct lpc11u6x_uart0_data *data = dev->data;
+	const struct  lpc11u6x_uart0_config *dev_cfg = DEV_CFG(dev);
+	struct lpc11u6x_uart0_data *data = DEV_DATA(dev);
 	const struct device *clk_dev;
 	uint32_t flags = 0;
 
@@ -187,7 +190,7 @@ static int lpc11u6x_uart0_configure(const struct device *dev,
 static int lpc11u6x_uart0_config_get(const struct device *dev,
 				     struct uart_config *cfg)
 {
-	struct lpc11u6x_uart0_data *data = dev->data;
+	struct lpc11u6x_uart0_data *data = DEV_DATA(dev);
 
 	cfg->baudrate = data->baudrate;
 	cfg->parity = data->parity;
@@ -204,7 +207,7 @@ static int lpc11u6x_uart0_fifo_fill(const struct device *dev,
 				    const uint8_t *data,
 				    const int size)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 	int nr_sent = 0;
 
 	while (nr_sent < size && (cfg->uart0->lsr & LPC11U6X_UART0_LSR_THRE)) {
@@ -217,7 +220,7 @@ static int lpc11u6x_uart0_fifo_fill(const struct device *dev,
 static int lpc11u6x_uart0_fifo_read(const struct device *dev, uint8_t *data,
 				    const int size)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 	int nr_rx = 0;
 
 	while (nr_rx < size && (cfg->uart0->lsr & LPC11U6X_UART0_LSR_RDR)) {
@@ -229,7 +232,7 @@ static int lpc11u6x_uart0_fifo_read(const struct device *dev, uint8_t *data,
 
 static void lpc11u6x_uart0_irq_tx_enable(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	cfg->uart0->ier = (cfg->uart0->ier & LPC11U6X_UART0_IER_MASK) |
 		LPC11U6X_UART0_IER_THREINTEN;
@@ -242,7 +245,7 @@ static void lpc11u6x_uart0_irq_tx_enable(const struct device *dev)
 
 static void lpc11u6x_uart0_irq_tx_disable(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	cfg->uart0->ier = (cfg->uart0->ier & LPC11U6X_UART0_IER_MASK) &
 		~LPC11U6X_UART0_IER_THREINTEN;
@@ -250,14 +253,14 @@ static void lpc11u6x_uart0_irq_tx_disable(const struct device *dev)
 
 static int lpc11u6x_uart0_irq_tx_complete(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	return (cfg->uart0->lsr & LPC11U6X_UART0_LSR_TEMT) != 0;
 }
 
 static int lpc11u6x_uart0_irq_tx_ready(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	return (cfg->uart0->lsr & LPC11U6X_UART0_LSR_THRE) &&
 		(cfg->uart0->ier & LPC11U6X_UART0_IER_THREINTEN);
@@ -265,7 +268,7 @@ static int lpc11u6x_uart0_irq_tx_ready(const struct device *dev)
 
 static void lpc11u6x_uart0_irq_rx_enable(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	cfg->uart0->ier = (cfg->uart0->ier & LPC11U6X_UART0_IER_MASK) |
 		LPC11U6X_UART0_IER_RBRINTEN;
@@ -273,7 +276,7 @@ static void lpc11u6x_uart0_irq_rx_enable(const struct device *dev)
 
 static void lpc11u6x_uart0_irq_rx_disable(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	cfg->uart0->ier = (cfg->uart0->ier & LPC11U6X_UART0_IER_MASK) &
 		~LPC11U6X_UART0_IER_RBRINTEN;
@@ -281,7 +284,7 @@ static void lpc11u6x_uart0_irq_rx_disable(const struct device *dev)
 
 static int lpc11u6x_uart0_irq_rx_ready(const struct device *dev)
 {
-	struct lpc11u6x_uart0_data *data = dev->data;
+	struct lpc11u6x_uart0_data *data = DEV_DATA(dev);
 
 	return (LPC11U6X_UART0_IIR_INTID(data->cached_iir) ==
 		LPC11U6X_UART0_IIR_INTID_RDA) ||
@@ -291,7 +294,7 @@ static int lpc11u6x_uart0_irq_rx_ready(const struct device *dev)
 
 static void lpc11u6x_uart0_irq_err_enable(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	cfg->uart0->ier = (cfg->uart0->ier & LPC11U6X_UART0_IER_MASK) |
 		LPC11U6X_UART0_IER_RLSINTEN;
@@ -299,7 +302,7 @@ static void lpc11u6x_uart0_irq_err_enable(const struct device *dev)
 
 static void lpc11u6x_uart0_irq_err_disable(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
 
 	cfg->uart0->ier = (cfg->uart0->ier & LPC11U6X_UART0_IER_MASK) &
 		~LPC11U6X_UART0_IER_RLSINTEN;
@@ -307,15 +310,15 @@ static void lpc11u6x_uart0_irq_err_disable(const struct device *dev)
 
 static int lpc11u6x_uart0_irq_is_pending(const struct device *dev)
 {
-	struct lpc11u6x_uart0_data *data = dev->data;
+	struct lpc11u6x_uart0_data *data = DEV_DATA(dev);
 
 	return !(data->cached_iir & LPC11U6X_UART0_IIR_STATUS);
 }
 
 static int lpc11u6x_uart0_irq_update(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
-	struct lpc11u6x_uart0_data *data = dev->data;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
+	struct lpc11u6x_uart0_data *data = DEV_DATA(dev);
 
 	data->cached_iir = cfg->uart0->iir;
 	return 1;
@@ -325,7 +328,7 @@ static void lpc11u6x_uart0_irq_callback_set(const struct device *dev,
 					    uart_irq_callback_user_data_t cb,
 					    void *user_data)
 {
-	struct lpc11u6x_uart0_data *data = dev->data;
+	struct lpc11u6x_uart0_data *data = DEV_DATA(dev);
 
 	data->cb = cb;
 	data->cb_data = user_data;
@@ -333,7 +336,7 @@ static void lpc11u6x_uart0_irq_callback_set(const struct device *dev,
 
 static void lpc11u6x_uart0_isr(const struct device *dev)
 {
-	struct lpc11u6x_uart0_data *data = dev->data;
+	struct lpc11u6x_uart0_data *data = DEV_DATA(dev);
 
 	if (data->cb) {
 		data->cb(dev, data->cb_data);
@@ -343,8 +346,8 @@ static void lpc11u6x_uart0_isr(const struct device *dev)
 
 static int lpc11u6x_uart0_init(const struct device *dev)
 {
-	const struct lpc11u6x_uart0_config *cfg = dev->config;
-	struct lpc11u6x_uart0_data *data = dev->data;
+	const struct lpc11u6x_uart0_config *cfg = DEV_CFG(dev);
+	struct lpc11u6x_uart0_data *data = DEV_DATA(dev);
 	const struct device *clk_drv, *rx_pinmux_drv, *tx_pinmux_drv;
 
 	/* Configure RX and TX pin via the pinmux driver */
@@ -466,7 +469,7 @@ static void lpc11u6x_uart0_isr_config(const struct device *dev)
 
 static int lpc11u6x_uartx_poll_in(const struct device *dev, unsigned char *c)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	if (!(cfg->base->stat & LPC11U6X_UARTX_STAT_RXRDY)) {
 		return -1;
@@ -477,7 +480,7 @@ static int lpc11u6x_uartx_poll_in(const struct device *dev, unsigned char *c)
 
 static void lpc11u6x_uartx_poll_out(const struct device *dev, unsigned char c)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	while (!(cfg->base->stat & LPC11U6X_UARTX_STAT_TXRDY)) {
 	}
@@ -486,7 +489,7 @@ static void lpc11u6x_uartx_poll_out(const struct device *dev, unsigned char c)
 
 static int lpc11u6x_uartx_err_check(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 	int ret = 0;
 
 	if (cfg->base->stat & LPC11U6X_UARTX_STAT_OVERRUNINT) {
@@ -523,8 +526,8 @@ static void lpc11u6x_uartx_config_baud(const struct lpc11u6x_uartx_config *cfg,
 static int lpc11u6x_uartx_configure(const struct device *dev,
 				    const struct uart_config *cfg)
 {
-	const struct  lpc11u6x_uartx_config *dev_cfg = dev->config;
-	struct lpc11u6x_uartx_data *data = dev->data;
+	const struct  lpc11u6x_uartx_config *dev_cfg = DEV_CFG(dev);
+	struct lpc11u6x_uartx_data *data = DEV_DATA(dev);
 	const struct device *clk_dev;
 	uint32_t flags = 0;
 
@@ -614,7 +617,7 @@ static int lpc11u6x_uartx_configure(const struct device *dev,
 static int lpc11u6x_uartx_config_get(const struct device *dev,
 				     struct uart_config *cfg)
 {
-	const struct lpc11u6x_uartx_data *data = dev->data;
+	const struct lpc11u6x_uartx_data *data = DEV_DATA(dev);
 
 	cfg->baudrate = data->baudrate;
 	cfg->parity = data->parity;
@@ -631,7 +634,7 @@ static int lpc11u6x_uartx_fifo_fill(const struct device *dev,
 				    const uint8_t *data,
 				    int size)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 	int tx_size = 0;
 
 	while (tx_size < size &&
@@ -644,7 +647,7 @@ static int lpc11u6x_uartx_fifo_fill(const struct device *dev,
 static int lpc11u6x_uartx_fifo_read(const struct device *dev, uint8_t *data,
 				    int size)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 	int rx_size = 0;
 
 	while (rx_size < size &&
@@ -656,7 +659,7 @@ static int lpc11u6x_uartx_fifo_read(const struct device *dev, uint8_t *data,
 
 static void lpc11u6x_uartx_irq_tx_enable(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	cfg->base->int_en_set = (cfg->base->int_en_set &
 				 LPC11U6X_UARTX_INT_EN_SET_MASK) |
@@ -665,14 +668,14 @@ static void lpc11u6x_uartx_irq_tx_enable(const struct device *dev)
 
 static void lpc11u6x_uartx_irq_tx_disable(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	cfg->base->int_en_clr = LPC11U6X_UARTX_INT_EN_CLR_TXRDYCLR;
 }
 
 static int lpc11u6x_uartx_irq_tx_ready(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	return (cfg->base->stat & LPC11U6X_UARTX_STAT_TXRDY) &&
 		(cfg->base->int_en_set & LPC11U6X_UARTX_INT_EN_SET_TXRDYEN);
@@ -680,14 +683,14 @@ static int lpc11u6x_uartx_irq_tx_ready(const struct device *dev)
 
 static int lpc11u6x_uartx_irq_tx_complete(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	return (cfg->base->stat & LPC11U6X_UARTX_STAT_TXIDLE) != 0;
 }
 
 static void lpc11u6x_uartx_irq_rx_enable(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	cfg->base->int_en_set = (cfg->base->int_en_set &
 				 LPC11U6X_UARTX_INT_EN_SET_MASK) |
@@ -696,14 +699,14 @@ static void lpc11u6x_uartx_irq_rx_enable(const struct device *dev)
 
 static void lpc11u6x_uartx_irq_rx_disable(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	cfg->base->int_en_clr = LPC11U6X_UARTX_INT_EN_CLR_RXRDYCLR;
 }
 
 static int lpc11u6x_uartx_irq_rx_ready(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	return (cfg->base->stat & LPC11U6X_UARTX_STAT_RXRDY) &&
 		(cfg->base->int_en_set & LPC11U6X_UARTX_INT_EN_SET_RXRDYEN);
@@ -711,7 +714,7 @@ static int lpc11u6x_uartx_irq_rx_ready(const struct device *dev)
 
 static void lpc11u6x_uartx_irq_err_enable(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	cfg->base->int_en_set = (cfg->base->int_en_set &
 				 LPC11U6X_UARTX_INT_EN_SET_MASK) |
@@ -722,7 +725,7 @@ static void lpc11u6x_uartx_irq_err_enable(const struct device *dev)
 
 static void lpc11u6x_uartx_irq_err_disable(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	cfg->base->int_en_clr = LPC11U6X_UARTX_INT_EN_CLR_OVERRUNCLR |
 		LPC11U6X_UARTX_INT_EN_CLR_FRAMERRCLR |
@@ -731,7 +734,7 @@ static void lpc11u6x_uartx_irq_err_disable(const struct device *dev)
 
 static int lpc11u6x_uartx_irq_is_pending(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
 
 	if ((cfg->base->stat & LPC11U6X_UARTX_STAT_RXRDY) &&
 	    (cfg->base->int_stat & LPC11U6X_UARTX_INT_STAT_RXRDY)) {
@@ -758,7 +761,7 @@ static void lpc11u6x_uartx_irq_callback_set(const struct device *dev,
 					    uart_irq_callback_user_data_t cb,
 					    void *user_data)
 {
-	struct lpc11u6x_uartx_data *data = dev->data;
+	struct lpc11u6x_uartx_data *data = DEV_DATA(dev);
 
 	data->cb = cb;
 	data->cb_data = user_data;
@@ -766,7 +769,7 @@ static void lpc11u6x_uartx_irq_callback_set(const struct device *dev,
 
 static void lpc11u6x_uartx_isr(const struct device *dev)
 {
-	struct lpc11u6x_uartx_data *data = dev->data;
+	struct lpc11u6x_uartx_data *data = DEV_DATA(dev);
 
 	if (data->cb) {
 		data->cb(dev, data->cb_data);
@@ -789,8 +792,8 @@ static void lpc11u6x_uartx_shared_isr(const void *arg)
 
 static int lpc11u6x_uartx_init(const struct device *dev)
 {
-	const struct lpc11u6x_uartx_config *cfg = dev->config;
-	struct lpc11u6x_uartx_data *data = dev->data;
+	const struct lpc11u6x_uartx_config *cfg = DEV_CFG(dev);
+	struct lpc11u6x_uartx_data *data = DEV_DATA(dev);
 	const struct device *clk_drv, *rx_pinmux_drv, *tx_pinmux_drv;
 
 	/* Configure RX and TX pin via the pinmux driver */

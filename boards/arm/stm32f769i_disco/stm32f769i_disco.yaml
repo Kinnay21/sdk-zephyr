@@ -16,5 +16,3 @@ supported:
   - gpio
   - arduino_gpio
   - netif:eth
-  - memc
-  - kscan:touch
